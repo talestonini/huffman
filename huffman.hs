@@ -32,9 +32,9 @@ toLeafList = List.map Leaf
 buildFreqTree :: [Tree Occur] -> Tree Occur
 buildFreqTree [t]        = t
 buildFreqTree (t1:t2:ts) =
-  let compareValueFreq t1 t2 = snd (val t1) `compare` snd (val t2)
+  let comparingValueFreq t1 t2 = snd (val t1) `compare` snd (val t2)
       mergeTrees t1 t2 = Node (fst (val t1) ++ fst (val t2), snd (val t1) + snd (val t2)) t1 t2
-  in buildFreqTree $ List.insertBy compareValueFreq (mergeTrees t1 t2) ts
+  in buildFreqTree $ List.insertBy comparingValueFreq (mergeTrees t1 t2) ts
 
 chain :: String -> Tree Occur
 chain str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
