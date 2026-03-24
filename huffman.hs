@@ -15,7 +15,7 @@ import qualified Data.Map as Map
 
 type FreqMap = Map.Map String Int
 type Occur = (String, Int)
-data Tree a = Leaf | Node a
+data Tree a = Empty | Leaf { val :: a } | Node { val :: a, left :: Tree a, right :: Tree a } deriving (Show, Eq, Ord)
 
 -- Note that each char in the input string is converted to a single-char string in the output map.  This will help
 -- build the tree of frequencies.
@@ -24,3 +24,17 @@ buildFreqMap = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Ma
 
 sortFreqMap :: FreqMap -> [Occur]
 sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
+
+toLeafList :: (Show a, Eq a, Ord a) => [a] -> [Tree a]
+toLeafList = List.map Leaf
+
+-- Traverses list of leaves to build the tree.
+buildFreqTree :: [Tree Occur] -> Tree Occur
+buildFreqTree [t]        = t
+buildFreqTree (t1:t2:ts) =
+  let compareValueFreq t1 t2 = snd (val t1) `compare` snd (val t2)
+      mergeTrees t1 t2 = Node (fst (val t1) ++ fst (val t2), snd (val t1) + snd (val t2)) t1 t2
+  in buildFreqTree $ List.insertBy compareValueFreq (mergeTrees t1 t2) ts
+
+chain :: String -> Tree Occur
+chain str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
