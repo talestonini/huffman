@@ -13,12 +13,14 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-type FreqMap = Map.Map Char Int
-type Occur = (Char, Int)
+type FreqMap = Map.Map String Int
+type Occur = (String, Int)
 data Tree a = Leaf | Node a
 
+-- Note that each char in the input string is converted to a single-char string in the output map.  This will help
+-- build the tree of frequencies.
 buildFreqMap :: String -> FreqMap
-buildFreqMap = foldr (\ c acc -> Map.insertWith (+) c 1 acc) Map.empty
+buildFreqMap = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
 
 sortFreqMap :: FreqMap -> [Occur]
 sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
