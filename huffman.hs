@@ -12,10 +12,12 @@
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Control.Arrow (ArrowChoice(right))
 
 type FreqMap = Map.Map String Int
 type Occur = (String, Int)
-data Tree a = Empty | Leaf { val :: a } | Node { val :: a, left :: Tree a, right :: Tree a } deriving (Show, Eq, Ord)
+data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
+type CodeMap = Map.Map Char String
 
 -- Note that each char in the input string is converted to a single-char string in the output map.  This will help
 -- build the tree of frequencies.
@@ -26,15 +28,26 @@ sortFreqMap :: FreqMap -> [Occur]
 sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
 
 toLeafList :: (Show a, Eq a, Ord a) => [a] -> [Tree a]
-toLeafList = List.map Leaf
+toLeafList = List.map (\ a -> Node a Empty Empty)
 
 -- Traverses list of leaves to build the tree.
 buildFreqTree :: [Tree Occur] -> Tree Occur
 buildFreqTree [t]        = t
 buildFreqTree (t1:t2:ts) =
-  let comparingValueFreq t1 t2 = snd (val t1) `compare` snd (val t2)
-      mergeTrees t1 t2 = Node (fst (val t1) ++ fst (val t2), snd (val t1) + snd (val t2)) t1 t2
+  let mergeTrees         t1@(Node v1 _ _) t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) t1 t2
+      comparingValueFreq t1@(Node v1 _ _) t2@(Node v2 _ _) = snd v1 `compare` snd v2
   in buildFreqTree $ List.insertBy comparingValueFreq (mergeTrees t1 t2) ts
 
-chain :: String -> Tree Occur
-chain str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
+buildCodeMap :: Tree Occur -> (CodeMap, String) -> CodeMap
+buildCodeMap (Node v left right) (cm, code)
+  | left == Empty && right == Empty = Map.insert (head $ fst v) code cm
+  | otherwise =
+    let cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
+    in buildCodeMap right (cmWithLeftTree, code ++ "1")
+
+-- Putting all together
+freqTree :: String -> Tree Occur
+freqTree str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
+
+codeMap :: String -> CodeMap
+codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
