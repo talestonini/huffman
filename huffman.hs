@@ -12,7 +12,6 @@
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Control.Arrow (ArrowChoice(right))
 
 type FreqMap = Map.Map String Int
 type Occur = (String, Int)
@@ -51,3 +50,13 @@ freqTree str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
 codeMap :: String -> CodeMap
 codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
+
+estimateCompaction :: String -> Double
+estimateCompaction str =
+  let ogSizeBits = length str * 8 -- size in bits
+      cm         = codeMap str
+      code c     = case Map.lookup c cm of
+        Nothing  -> ""
+        Just str -> str
+      encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 str
+  in fromIntegral encodedLenBits / fromIntegral ogSizeBits
