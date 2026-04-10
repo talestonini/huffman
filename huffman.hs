@@ -1,33 +1,32 @@
 -- Huffman Algo: Compacts text by encoding its characters with codes whose lenght is inversely proportional to their
 -- frequencies in the text.  That way, more frequent characters will have small codes, whereas less frequent characters
 -- will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
---
--- 0. Obtain text input.
--- 1. Build map of character frequencies.
--- 2. Sort it by frequencies.
--- 3. Build the tree of character codes.
--- 4. Traverse input text, replacing each character by their code.
---
 
 import Data.Function (on)
+import Data.Maybe (fromMaybe)
 import qualified Data.List as List
 import qualified Data.Map as Map
+
 
 type FreqMap = Map.Map String Int
 type Occur = (String, Int)
 data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
 type CodeMap = Map.Map Char String
 
+
 -- Note that each distinct char in the input string is converted to a single-char string in the output map.  This will
 -- help build the tree of frequencies.
 buildFreqMap :: String -> FreqMap
 buildFreqMap = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
 
+
 sortFreqMap :: FreqMap -> [Occur]
 sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
 
+
 toLeafList :: (Show a, Eq a, Ord a) => [a] -> [Tree a]
 toLeafList = List.map (\ a -> Node a Empty Empty)
+
 
 -- Traverses list of leaves to build the tree.
 buildFreqTree :: [Tree Occur] -> Tree Occur
@@ -37,6 +36,7 @@ buildFreqTree (t1:t2:ts) =
         comparingValueFreq t1@(Node v1 _ _) t2@(Node v2 _ _) = snd v1 `compare` snd v2
     in buildFreqTree $ List.insertBy comparingValueFreq (mergeTrees t1 t2) ts
 
+
 buildCodeMap :: Tree Occur -> (CodeMap, String) -> CodeMap
 buildCodeMap (Node v left right) (cm, code)
     | left == Empty && right == Empty = Map.insert (head $ fst v) code cm
@@ -44,19 +44,20 @@ buildCodeMap (Node v left right) (cm, code)
         let cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
         in buildCodeMap right (cmWithLeftTree, code ++ "1")
 
+
 -- Putting all together
 freqTree :: String -> Tree Occur
 freqTree str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
+
 codeMap :: String -> CodeMap
 codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
+
 
 estimateCompaction :: String -> Double
 estimateCompaction str =
     let ogSizeBits = length str * 8 -- size in bits
         cm         = codeMap str
-        code c     = case Map.lookup c cm of
-            Nothing  -> ""
-            Just str -> str
+        code c     = fromMaybe "" (Map.lookup c cm)
         encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 str
     in fromIntegral encodedLenBits / fromIntegral ogSizeBits
