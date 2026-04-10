@@ -8,11 +8,12 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import System.Directory.Internal.Prelude (getArgs)
 import System.IO (readFile)
+import Text.Printf (printf)
 
 
 type FreqMap = Map.Map String Int
-type Occur = (String, Int)
-data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
+type Occur   = (String, Int)
+data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
 type CodeMap = Map.Map Char String
 
 
@@ -47,7 +48,7 @@ decode = undefined
 estimate :: FilePath -> IO ()
 estimate filePath = do
     contents <- readFile filePath
-    putStrLn $ "Estimated compaction rate: " ++ show (estimateCompaction contents)
+    printf "Estimated compaction rate: %.3f\n" (estimateCompaction contents)
 
 
 ------------------------------------------------------------------------------------------------------------------------
