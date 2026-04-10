@@ -85,7 +85,6 @@ buildCodeMap (Node v left right) (cm, code)
         in buildCodeMap right (cmWithLeftTree, code ++ "1")
 
 
--- Putting all together
 freqTree :: String -> Tree Occur
 freqTree str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
@@ -96,8 +95,8 @@ codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
 
 estimateCompaction :: String -> Double
 estimateCompaction str =
-    let ogSizeBits = length str * 8 -- size in bits
-        cm         = codeMap str
-        code c     = fromMaybe "" (Map.lookup c cm)
+    let ogSizeBits     = length str * 8 -- size in bits
+        cm             = codeMap str
+        code c         = fromMaybe "" (Map.lookup c cm)
         encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 str
     in fromIntegral encodedLenBits / fromIntegral ogSizeBits
