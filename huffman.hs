@@ -3,15 +3,54 @@
 -- will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
 
 import Data.Function (on)
-import Data.Maybe (fromMaybe)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import System.Directory.Internal.Prelude (getArgs)
+import System.IO (readFile)
 
 
 type FreqMap = Map.Map String Int
 type Occur = (String, Int)
 data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
 type CodeMap = Map.Map Char String
+
+
+commands :: [(String, FilePath -> IO ())]
+commands =  [ ("encode", encode)
+            , ("decode", decode)
+            , ("estimate", estimate)
+            ]
+
+
+usage :: String
+usage = "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: encode, decode, estimate"
+
+
+main = do
+    args <- getArgs
+    case args of
+        [cmd, filePath] -> case lookup cmd commands of
+            Just c  -> c filePath
+            Nothing -> putStrLn $ "Invalid command: " ++ cmd ++ "\n\n" ++ usage
+        _               -> putStrLn $ "Invalid arguments.\n\n" ++ usage
+
+
+encode :: FilePath -> IO ()
+encode = undefined
+
+
+decode :: FilePath -> IO ()
+decode = undefined
+
+
+estimate :: FilePath -> IO ()
+estimate filePath = do
+    contents <- readFile filePath
+    putStrLn $ "Estimated compaction rate: " ++ show (estimateCompaction contents)
+
+
+------------------------------------------------------------------------------------------------------------------------
 
 
 -- Note that each distinct char in the input string is converted to a single-char string in the output map.  This will
