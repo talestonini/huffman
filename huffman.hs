@@ -18,9 +18,9 @@ type CodeMap = Map.Map Char String
 
 
 commands :: [(String, FilePath -> IO ())]
-commands =  [ ("encode", encode)
-            , ("decode", decode)
-            , ("estimate", estimate)
+commands =  [ ("encode", encodeCmd)
+            , ("decode", decodeCmd)
+            , ("estimate", estimateCmd)
             ]
 
 
@@ -37,16 +37,16 @@ main = do
         _               -> putStrLn $ "Invalid arguments.\n\n" ++ usage
 
 
-encode :: FilePath -> IO ()
-encode = undefined
+encodeCmd :: FilePath -> IO ()
+encodeCmd = undefined
 
 
-decode :: FilePath -> IO ()
-decode = undefined
+decodeCmd :: FilePath -> IO ()
+decodeCmd = undefined
 
 
-estimate :: FilePath -> IO ()
-estimate filePath = do
+estimateCmd :: FilePath -> IO ()
+estimateCmd filePath = do
     contents <- readFile filePath
     printf "Estimated compaction rate: %.3f\n" (estimateCompaction contents)
 
