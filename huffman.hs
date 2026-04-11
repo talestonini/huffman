@@ -30,6 +30,7 @@ commands =  [ ("encode", encodeCmd)
             , ("printFreqTree", printFreqTreeCmd)
             , ("printCodeMap", printCodeMapCmd)
             , ("saveFreqTree", saveFreqTreeCmd)
+            , ("loadFreqTree", loadFreqTreeCmd)
             ]
 
 
@@ -69,15 +70,23 @@ printFreqTreeCmd filePath = do
 printCodeMapCmd :: FilePath -> IO ()
 printCodeMapCmd filePath = do
     content <- readFile filePath
-    let cm         = codeMap content
-        code k     = fromMaybe "" (Map.lookup k cm)
-        numEntries = "\nEntry count: " ++ show (length cm)
-    putStrLn $ foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
+    putStrLn $ printCodeMap $ codeMap content
 
 
 saveFreqTreeCmd :: FilePath -> IO ()
 saveFreqTreeCmd filePath = do
-    BL.appendFile (filePath ++ "-compact") (encode $ freqTree filePath)
+    content <- readFile filePath
+    BL.writeFile (filePath ++ "-compact") (encode $ freqTree content)
+
+
+loadFreqTreeCmd :: FilePath -> IO ()
+loadFreqTreeCmd filePath = do
+    binaryContent <- BL.readFile filePath
+    let freqTree = decode binaryContent :: Tree Occur
+        cm       = buildCodeMap freqTree (Map.empty, "")
+    print freqTree
+    putStrLn ""
+    putStrLn $ printCodeMap cm
 
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -120,6 +129,13 @@ freqTree str = buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
 codeMap :: String -> CodeMap
 codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
+
+
+printCodeMap :: CodeMap -> String
+printCodeMap cm =
+    let code k     = fromMaybe "" (Map.lookup k cm)
+        numEntries = "\nEntry count: " ++ show (length cm)
+    in foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
 
 
 estimateCompaction :: String -> Double
