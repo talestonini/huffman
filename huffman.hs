@@ -2,6 +2,7 @@
 -- frequencies in the text.  That way, more frequent characters will have small codes, whereas less frequent characters
 -- will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
 
+
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -21,6 +22,7 @@ commands :: [(String, FilePath -> IO ())]
 commands =  [ ("encode", encodeCmd)
             , ("decode", decodeCmd)
             , ("estimate", estimateCmd)
+            , ("freqTree", freqTreeCmd)
             , ("codeMap", codeMapCmd)
             ]
 
@@ -50,6 +52,12 @@ estimateCmd :: FilePath -> IO ()
 estimateCmd filePath = do
     contents <- readFile filePath
     printf "Estimated compaction rate: %.3f\n" (estimateCompaction contents)
+
+
+freqTreeCmd :: FilePath -> IO ()
+freqTreeCmd filePath = do
+    content <- readFile filePath
+    print $ freqTree content
 
 
 codeMapCmd :: FilePath -> IO ()
