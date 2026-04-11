@@ -21,11 +21,12 @@ commands :: [(String, FilePath -> IO ())]
 commands =  [ ("encode", encodeCmd)
             , ("decode", decodeCmd)
             , ("estimate", estimateCmd)
+            , ("codeMap", codeMapCmd)
             ]
 
 
 usage :: String
-usage = "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: encode, decode, estimate"
+usage = "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: encode, decode"
 
 
 main = do
@@ -49,6 +50,15 @@ estimateCmd :: FilePath -> IO ()
 estimateCmd filePath = do
     contents <- readFile filePath
     printf "Estimated compaction rate: %.3f\n" (estimateCompaction contents)
+
+
+codeMapCmd :: FilePath -> IO ()
+codeMapCmd filePath = do
+    contents <- readFile filePath
+    let cm         = codeMap contents
+        code k     = fromMaybe "" (Map.lookup k cm)
+        numEntries = "\nEntry count: " ++ show (length cm)
+    putStrLn $ foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
 
 
 ------------------------------------------------------------------------------------------------------------------------
