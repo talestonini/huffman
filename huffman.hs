@@ -3,18 +3,23 @@
 -- will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
 
 
+import Data.Binary (Binary, encode, decode)
+import qualified Data.ByteString.Lazy as BL
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import GHC.Generics as G
 import System.Directory.Internal.Prelude (getArgs)
 import System.IO (readFile)
 import Text.Printf (printf)
+import Text.XHtml (content)
 
 
 type FreqMap = Map.Map String Int
 type Occur   = (String, Int)
-data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord)
+data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
+instance (Binary a) => Binary (Tree a)
 type CodeMap = Map.Map Char String
 
 
@@ -22,8 +27,9 @@ commands :: [(String, FilePath -> IO ())]
 commands =  [ ("encode", encodeCmd)
             , ("decode", decodeCmd)
             , ("estimate", estimateCmd)
-            , ("freqTree", freqTreeCmd)
-            , ("codeMap", codeMapCmd)
+            , ("printFreqTree", printFreqTreeCmd)
+            , ("printCodeMap", printCodeMapCmd)
+            , ("saveFreqTree", saveFreqTreeCmd)
             ]
 
 
@@ -50,23 +56,28 @@ decodeCmd = undefined
 
 estimateCmd :: FilePath -> IO ()
 estimateCmd filePath = do
-    contents <- readFile filePath
-    printf "Estimated compaction rate: %.3f\n" (estimateCompaction contents)
+    content <- readFile filePath
+    printf "Estimated compaction rate: %.3f\n" (estimateCompaction content)
 
 
-freqTreeCmd :: FilePath -> IO ()
-freqTreeCmd filePath = do
+printFreqTreeCmd :: FilePath -> IO ()
+printFreqTreeCmd filePath = do
     content <- readFile filePath
     print $ freqTree content
 
 
-codeMapCmd :: FilePath -> IO ()
-codeMapCmd filePath = do
-    contents <- readFile filePath
-    let cm         = codeMap contents
+printCodeMapCmd :: FilePath -> IO ()
+printCodeMapCmd filePath = do
+    content <- readFile filePath
+    let cm         = codeMap content
         code k     = fromMaybe "" (Map.lookup k cm)
         numEntries = "\nEntry count: " ++ show (length cm)
     putStrLn $ foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
+
+
+saveFreqTreeCmd :: FilePath -> IO ()
+saveFreqTreeCmd filePath = do
+    BL.appendFile (filePath ++ "-compact") (encode $ freqTree filePath)
 
 
 ------------------------------------------------------------------------------------------------------------------------
