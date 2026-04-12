@@ -5,12 +5,13 @@
 --
 
 
+module Main where
+
 import Core
 import Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import System.Directory.Internal.Prelude (getArgs)
-import System.IO (readFile)
 import Text.Printf (printf)
 
 
@@ -29,6 +30,7 @@ usage :: String
 usage = "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: encode, decode"
 
 
+main :: IO ()
 main = do
     args <- getArgs
     case args of
@@ -73,8 +75,8 @@ saveFreqTreeCmd filePath = do
 loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
     binaryContent <- BL.readFile filePath
-    let freqTree = decode binaryContent :: Tree Occur
-        cm       = buildCodeMap freqTree (Map.empty, "")
-    print freqTree
+    let ft = decode binaryContent :: Tree Occur
+        cm = buildCodeMap ft (Map.empty, "")
+    print ft
     putStrLn ""
     putStrLn $ prettyPrintCodeMap cm

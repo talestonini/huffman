@@ -9,7 +9,7 @@ module Core
 ) where
 
 
-import Data.Binary (Binary, encode, decode)
+import Data.Binary (Binary)
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -17,8 +17,7 @@ import Data.Maybe (fromMaybe)
 import GHC.Generics as G
 
 
-type FreqMap = Map.Map String Int
-type Occur   = (String, Int)
+type Occur = (String, Int)
 data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
 instance (Binary a) => Binary (Tree a)
 type Code = String
