@@ -1,0 +1,8 @@
+cradle:
+  cabal:
+    - path: "app"
+      component: "exe:tt-huffman"
+    - path: "src"
+      component: "lib:tt-huffman"
+    - path: "test"
+      component: "test:tt-huffman-test"
