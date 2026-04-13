@@ -35,10 +35,15 @@ type CodeMap = Map.Map Char Code
 -- - Tree Occur..: the frequency tree
 --
 buildFreqTree :: [Tree Occur] -> Tree Occur
+buildFreqTree []         = Empty
 buildFreqTree [t]        = t
 buildFreqTree (t1:t2:ts) =
-    let mergeTrees         t1@(Node v1 _ _) t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) t1 t2
-        comparingNodeValue t1@(Node v1 _ _) t2@(Node v2 _ _) = snd v1 `compare` snd v2
+    let mergeTrees         t1'@(Node v1 _ _) t2'@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) t1' t2'
+        mergeTrees         Empty             _                 = Empty
+        mergeTrees         (Node _ _ _)      Empty             = Empty
+        comparingNodeValue (Node v1 _ _)     (Node v2 _ _)     = snd v1 `compare` snd v2
+        comparingNodeValue Empty             _                 = LT
+        comparingNodeValue (Node _ _ _)      Empty             = GT
     in  buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
 
 
@@ -55,6 +60,7 @@ buildFreqTree (t1:t2:ts) =
 -- - CodeMap........: the final value of the map accumulator
 -- 
 buildCodeMap :: Tree Occur -> (CodeMap, Code) -> CodeMap
+buildCodeMap Empty _ = Map.empty
 buildCodeMap (Node v left right) (cm, code)
     -- if got to a leaf, insert the character -> code into the map
     | left == Empty && right == Empty = Map.insert (head $ fst v) code cm

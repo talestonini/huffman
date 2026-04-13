@@ -27,7 +27,10 @@ commands =  [ ("encode", encodeCmd)
 
 
 usage :: String
-usage = "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: encode, decode"
+usage =
+    let sep acc = if null acc then "" else ", "
+        allCmds = foldl (\ acc cmdEntry -> acc ++ sep acc ++ fst cmdEntry) "" commands
+    in  "Usage: ./huffman <command> <filePath>\n\nwhere <command> is one of: " ++ allCmds
 
 
 main :: IO ()
