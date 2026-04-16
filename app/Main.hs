@@ -39,8 +39,8 @@ main = do
     case args of
         [cmd, filePath] -> case lookup cmd commands of
             Just c  -> c filePath
-            Nothing -> putStrLn $ "Invalid command: " ++ cmd ++ "\n\n" ++ usage
-        _               -> putStrLn $ "Invalid arguments.\n\n" ++ usage
+            Nothing -> putStrLn ("Invalid command: " ++ cmd ++ "\n\n" ++ usage)
+        _               -> putStrLn ("Invalid arguments.\n\n" ++ usage)
 
 
 encodeCmd :: FilePath -> IO ()
@@ -63,7 +63,7 @@ estimateCmd filePath = do
 printFreqTreeCmd :: FilePath -> IO ()
 printFreqTreeCmd filePath = do
     content <- readFile filePath
-    print $ freqTree content
+    print (freqTree content)
 
 
 printCodeMapCmd :: FilePath -> IO ()
@@ -85,4 +85,4 @@ loadFreqTreeCmd filePath = do
         cm = buildCodeMap ft (Map.empty, "")
     print ft
     putStrLn ""
-    putStrLn $ prettyPrintCodeMap cm
+    putStrLn (prettyPrintCodeMap cm)

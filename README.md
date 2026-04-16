@@ -14,5 +14,3 @@ My implementation of the Huffman encoder in Haskell.
 
 
 ## Questions
-
-- Why using cons (:) for buffering and reversing the buffer when printing is not working for the last segment?

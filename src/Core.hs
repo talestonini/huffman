@@ -155,9 +155,10 @@ encodeToStr :: Content -> IO String
 encodeToStr content =
     let cm                  = codeMap content
         encodeChar buffer c = foldM _writeBit buffer (_charCode c cm)
+        padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
-        return (reverse str)
+        return (reverse str ++ padWithZeroes str)
 
 
 _writeBit :: String -> Bit -> IO String
