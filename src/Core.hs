@@ -28,8 +28,8 @@ type CodeMap = Map.Map Char Code
 type Bit = Char
 
 
-charCode :: Char -> CodeMap -> Code
-charCode c cm = fromMaybe "" (Map.lookup c cm)
+_charCode :: Char -> CodeMap -> Code
+_charCode c cm = fromMaybe "" (Map.lookup c cm)
 
 
 --
@@ -42,17 +42,17 @@ charCode c cm = fromMaybe "" (Map.lookup c cm)
 -- OUT:
 -- - Tree Occur..: the frequency tree
 --
-buildFreqTree :: [Tree Occur] -> Tree Occur
-buildFreqTree []         = Empty
-buildFreqTree [t]        = t
-buildFreqTree (t1:t2:ts) =
+_buildFreqTree :: [Tree Occur] -> Tree Occur
+_buildFreqTree []         = Empty
+_buildFreqTree [t]        = t
+_buildFreqTree (t1:t2:ts) =
     let mergeTrees         t1'@(Node v1 _ _) t2'@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) t1' t2'
         mergeTrees         Empty             _                 = Empty
         mergeTrees         (Node _ _ _)      Empty             = Empty
         comparingNodeValue (Node v1 _ _)     (Node v2 _ _)     = snd v1 `compare` snd v2
         comparingNodeValue Empty             _                 = LT
         comparingNodeValue (Node _ _ _)      Empty             = GT
-    in  buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
+    in  _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
 
 
 -- 
@@ -97,7 +97,7 @@ freqTree str =
         sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
         -- convert list of character -> frequency in to a list of tree leaves
         toLeafList     = List.map (\ a -> Node a Empty Empty)
-    in  buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
+    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
 
 --
@@ -124,7 +124,7 @@ codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
 -- 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
-    let code k     = charCode k cm
+    let code k     = _charCode k cm
         numEntries = "\nEntry count: " ++ show (length cm)
     in  foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
 
@@ -142,7 +142,7 @@ estimateCompaction :: Content -> Double
 estimateCompaction content =
     let ogSizeBits     = length content * 8 -- size in bits
         cm             = codeMap content
-        encodedLenBits = foldr (\ c acc -> acc + length (charCode c cm)) 0 content
+        encodedLenBits = foldr (\ c acc -> acc + length (_charCode c cm)) 0 content
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
@@ -154,19 +154,21 @@ bufferSize = 8
 encodeToStr :: Content -> IO String
 encodeToStr content =
     let cm                  = codeMap content
-        encodeChar buffer c = foldM writeBit buffer (charCode c cm)
-    in  foldM encodeChar "" content
+        encodeChar buffer c = foldM _writeBit buffer (_charCode c cm)
+    in  do
+        str <- foldM encodeChar "" content
+        return (reverse str)
 
 
-writeBit :: String -> Bit -> IO String
-writeBit buffer bit =
-    let concatBit = buffer ++ [bit]
+_writeBit :: String -> Bit -> IO String
+_writeBit buffer bit =
+    let doBuffer = bit:buffer
     in  if length buffer + 1 == bufferSize
             then do
                 -- flush the buffer
-                putStrLn concatBit
+                putStrLn $ reverse doBuffer
                 return ""
             else
                 -- keep buffering
-                return concatBit
+                return doBuffer
 
