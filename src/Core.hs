@@ -16,7 +16,7 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import GHC.Generics as G
+import GHC.Generics (Generic)
 
 
 type Occur = (String, Int)
@@ -26,6 +26,10 @@ type Content = String
 type Code = String
 type CodeMap = Map.Map Char Code
 type Bit = Char
+
+
+charCode :: Char -> CodeMap -> Code
+charCode c cm = fromMaybe "" (Map.lookup c cm)
 
 
 --
@@ -120,7 +124,7 @@ codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
 -- 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
-    let code k     = fromMaybe "" (Map.lookup k cm)
+    let code k     = charCode k cm
         numEntries = "\nEntry count: " ++ show (length cm)
     in  foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
 
@@ -138,8 +142,7 @@ estimateCompaction :: Content -> Double
 estimateCompaction content =
     let ogSizeBits     = length content * 8 -- size in bits
         cm             = codeMap content
-        code c         = fromMaybe "" (Map.lookup c cm)
-        encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 content
+        encodedLenBits = foldr (\ c acc -> acc + length (charCode c cm)) 0 content
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
@@ -151,8 +154,7 @@ bufferSize = 8
 encodeToStr :: Content -> IO String
 encodeToStr content =
     let cm                  = codeMap content
-        code c              = fromMaybe "" (Map.lookup c cm)
-        encodeChar buffer c = foldM writeBit buffer (code c)
+        encodeChar buffer c = foldM writeBit buffer (charCode c cm)
     in  foldM encodeChar "" content
 
 

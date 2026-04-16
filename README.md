@@ -10,7 +10,6 @@ My implementation of the Huffman encoder in Haskell.
 
 ## TO-DO
 
-- DRY: `code c = fromMaybe "" (Map.lookup c cm)`
 - Check places wher instead of using `let ... in` you could use `... where`.
 
 
