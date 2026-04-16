@@ -44,7 +44,10 @@ main = do
 
 
 encodeCmd :: FilePath -> IO ()
-encodeCmd = undefined
+encodeCmd filePath = do
+    content <- readFile filePath
+    str     <- encodeToStr content
+    putStrLn str
 
 
 decodeCmd :: FilePath -> IO ()

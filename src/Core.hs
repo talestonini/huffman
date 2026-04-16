@@ -6,9 +6,11 @@ module Core
 , codeMap
 , prettyPrintCodeMap
 , estimateCompaction
+, encodeToStr
 ) where
 
 
+import Control.Monad (foldM)
 import Data.Binary (Binary)
 import Data.Function (on)
 import qualified Data.List as List
@@ -20,8 +22,10 @@ import GHC.Generics as G
 type Occur = (String, Int)
 data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
 instance (Binary a) => Binary (Tree a)
+type Content = String
 type Code = String
 type CodeMap = Map.Map Char Code
+type Bit = Char
 
 
 --
@@ -76,12 +80,12 @@ buildCodeMap (Node v left right) (cm, code)
 -- a single-character string in the output map.
 -- 
 -- IN:
--- - String....: input file content
+-- - Content...: input file content
 -- 
 -- OUT:
 -- - Tree Occur: the frequency tree
 -- 
-freqTree :: String -> Tree Occur
+freqTree :: Content -> Tree Occur
 freqTree str =
         -- build the character frequency map
     let buildFreqMap   = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
@@ -96,13 +100,13 @@ freqTree str =
 -- Builds the map of character (key) to code (value) from the input file.
 --
 -- IN:
--- - String.: input file content
+-- - Content: input file content
 -- 
 -- OUT:
 -- - CodeMap: the code map
 -- 
-codeMap :: String -> CodeMap
-codeMap str = buildCodeMap (freqTree str) (Map.empty, "")
+codeMap :: Content -> CodeMap
+codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
 
 
 --
@@ -125,15 +129,42 @@ prettyPrintCodeMap cm =
 -- Provides an estimate rate for the compaction of the input file.
 --
 -- IN:
--- - String: the input file content
+-- - Content: the input file content
 --
 -- OUT:
--- - Double: the estimated compaction rate
+-- - Double.: the estimated compaction rate
 --
-estimateCompaction :: String -> Double
-estimateCompaction str =
-    let ogSizeBits     = length str * 8 -- size in bits
-        cm             = codeMap str
+estimateCompaction :: Content -> Double
+estimateCompaction content =
+    let ogSizeBits     = length content * 8 -- size in bits
+        cm             = codeMap content
         code c         = fromMaybe "" (Map.lookup c cm)
-        encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 str
+        encodedLenBits = foldr (\ c acc -> acc + length (code c)) 0 content
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
+
+
+-- buffer size in bytes
+bufferSize :: Int
+bufferSize = 8
+
+
+encodeToStr :: Content -> IO String
+encodeToStr content =
+    let cm                  = codeMap content
+        code c              = fromMaybe "" (Map.lookup c cm)
+        encodeChar buffer c = foldM writeBit buffer (code c)
+    in  foldM encodeChar "" content
+
+
+writeBit :: String -> Bit -> IO String
+writeBit buffer bit =
+    let concatBit = buffer ++ [bit]
+    in  if length buffer + 1 == bufferSize
+            then do
+                -- flush the buffer
+                putStrLn concatBit
+                return ""
+            else
+                -- keep buffering
+                return concatBit
+
