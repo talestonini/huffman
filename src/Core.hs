@@ -6,12 +6,13 @@ module Core
 , codeMap
 , prettyPrintCodeMap
 , estimateCompaction
-, encodeToStr
+, encode
 ) where
 
 
 import Control.Monad (foldM)
-import Data.Binary (Binary)
+import Data.Binary (Binary, Word8)
+import Data.Bits (Bits(shiftR))
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -26,6 +27,7 @@ type Content = String
 type Code = String
 type CodeMap = Map.Map Char Code
 type Bit = Char
+type Idx = Int
 
 
 _charCode :: Char -> CodeMap -> Code
@@ -151,8 +153,8 @@ bufferSize :: Int
 bufferSize = 8
 
 
-encodeToStr :: Content -> IO String
-encodeToStr content =
+encode :: Content -> IO String
+encode content =
     let cm                  = codeMap content
         encodeChar buffer c = foldM _writeBit buffer (_charCode c cm)
         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
@@ -173,3 +175,17 @@ _writeBit buffer bit =
                 -- keep buffering
                 return doBuffer
 
+
+_bitStringToByte :: String -> [Word8]
+_bitStringToByte ""   = []
+_bitStringToByte bits =
+    let bitsWithIdx = zip bits [0..]
+        bitWeights  = foldl (\ acc b -> acc ++ [_bitWeight b]) [] bitsWithIdx
+    in  sum (take 8 bitWeights) : _bitStringToByte (drop 8 bits)
+
+
+_bitWeight :: (Bit, Idx) -> Word8
+_bitWeight (bit, idx)
+    | bit == '0' = 0x00
+    | idx <= 0   = 0x80
+    | otherwise  = shiftR 0x80 idx

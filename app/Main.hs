@@ -8,7 +8,7 @@
 module Main where
 
 import Core
-import Data.Binary (encode, decode)
+import qualified Data.Binary as B (encode, decode)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import System.Directory.Internal.Prelude (getArgs)
@@ -46,7 +46,7 @@ main = do
 encodeCmd :: FilePath -> IO ()
 encodeCmd filePath = do
     content <- readFile filePath
-    str     <- encodeToStr content
+    str     <- encode content
     putStrLn str
 
 
@@ -75,13 +75,13 @@ printCodeMapCmd filePath = do
 saveFreqTreeCmd :: FilePath -> IO ()
 saveFreqTreeCmd filePath = do
     content <- readFile filePath
-    BL.writeFile (filePath ++ "-compact") (encode $ freqTree content)
+    BL.writeFile (filePath ++ "-compact") (B.encode $ freqTree content)
 
 
 loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
     binaryContent <- BL.readFile filePath
-    let ft = decode binaryContent :: Tree Occur
+    let ft = B.decode binaryContent :: Tree Occur
         cm = buildCodeMap ft (Map.empty, "")
     print ft
     putStrLn ""
