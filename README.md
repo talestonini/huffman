@@ -8,9 +8,10 @@ My implementation of the Huffman encoder in Haskell.
     cabal run tt-huffman encode file.txt
     cabal run tt-huffman decode file.txt
 
+
 ## TO-DO
 
-- Check places wher instead of using `let ... in` you could use `... where`.
+- Check places where instead of using `let ... in` you could use `... where`.
 
 
 ## Questions

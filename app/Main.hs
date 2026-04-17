@@ -46,7 +46,7 @@ main = do
 encodeCmd :: FilePath -> IO ()
 encodeCmd filePath = do
     content <- readFile filePath
-    str     <- encode content
+    str     <- encodeToStr content
     putStrLn str
 
 
@@ -75,12 +75,14 @@ printCodeMapCmd filePath = do
 saveFreqTreeCmd :: FilePath -> IO ()
 saveFreqTreeCmd filePath = do
     content <- readFile filePath
-    BL.writeFile (filePath ++ "-compact") (B.encode $ freqTree content)
+    let fullFilePath = filePath ++ "-compact"
+    BL.writeFile fullFilePath (B.encode $ freqTree content)
 
 
 loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
-    binaryContent <- BL.readFile filePath
+    let fullFilePath = filePath ++ "-compact"
+    binaryContent <- BL.readFile fullFilePath
     let ft = B.decode binaryContent :: Tree Occur
         cm = buildCodeMap ft (Map.empty, "")
     print ft

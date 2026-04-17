@@ -6,7 +6,7 @@ module Core
 , codeMap
 , prettyPrintCodeMap
 , estimateCompaction
-, encode
+, encodeToStr
 ) where
 
 
@@ -17,6 +17,8 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import qualified Data.Binary as B (encode, decode)
+import qualified Data.ByteString.Lazy as BL
 import GHC.Generics (Generic)
 
 
@@ -150,21 +152,21 @@ estimateCompaction content =
 
 -- buffer size in bytes
 bufferSize :: Int
-bufferSize = 8
+bufferSize = 16
 
 
-encode :: Content -> IO String
-encode content =
+encodeToStr :: Content -> IO String
+encodeToStr content =
     let cm                  = codeMap content
-        encodeChar buffer c = foldM _writeBit buffer (_charCode c cm)
+        encodeChar buffer c = foldM _writeBitToStr buffer (_charCode c cm)
         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
         return (reverse str ++ padWithZeroes str)
 
 
-_writeBit :: String -> Bit -> IO String
-_writeBit buffer bit =
+_writeBitToStr :: String -> Bit -> IO String
+_writeBitToStr buffer bit =
     let doBuffer = bit:buffer
     in  if length buffer + 1 == bufferSize
             then do
@@ -174,6 +176,41 @@ _writeBit buffer bit =
             else
                 -- keep buffering
                 return doBuffer
+
+
+-- encode :: FilePath -> IO ()
+-- encode filePath = do
+--     content <- readFile filePath
+--     let fullFilePath = filePath ++ "-compact"
+--     -- write header: frequency tree
+--     BL.writeFile fullFilePath (B.encode $ freqTree content)
+--     -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
+--     BL.appendFile fullFilePath (B.encode $ length content)
+--     -- write body: encoded content
+--     -- BL.appendFile fullFilePath (...)
+
+
+-- encodeToBytes :: Content -> IO String
+-- encodeToBytes content =
+--     let cm                  = codeMap content
+--         encodeChar buffer c = foldM _writeBitToBytes buffer (_charCode c cm)
+--         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
+--     in  do
+--         str <- foldM encodeChar "" content
+--         return (reverse str ++ padWithZeroes str)
+
+
+-- _writeBitToBytes :: String -> Bit -> IO String
+-- _writeBitToBytes buffer bit =
+--     let doBuffer = bit:buffer
+--     in  if length buffer + 1 == bufferSize
+--             then do
+--                 -- flush the buffer
+--                 putStrLn $ reverse doBuffer
+--                 return ""
+--             else
+--                 -- keep buffering
+--                 return doBuffer
 
 
 _bitStringToByte :: String -> [Word8]
@@ -189,3 +226,4 @@ _bitWeight (bit, idx)
     | bit == '0' = 0x00
     | idx <= 0   = 0x80
     | otherwise  = shiftR 0x80 idx
+
