@@ -54,7 +54,7 @@ encodeToStrCmd :: FilePath -> IO ()
 encodeToStrCmd filePath = do
     content <- readFile filePath
     str     <- encodeToStr content
-    putStrLn str
+    putStr str
 
 
 decodeCmd :: FilePath -> IO ()

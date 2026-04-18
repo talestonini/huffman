@@ -18,7 +18,7 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import qualified Data.Binary as B (encode, decode)
+import qualified Data.Binary as B (encode)
 import qualified Data.ByteString.Lazy as BL
 import GHC.Generics (Generic)
 
@@ -187,25 +187,49 @@ encode content filePath = do
     -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
     BL.appendFile filePath (B.encode $ length content)
     -- write body: encoded content
-    BL.appendFile filePath (_encodeToBytes content ft)
+    -- BL.appendFile filePath (_encodeToBytes content ft)
+    do
+        bitStr <- _encodeToBytes content ft filePath
+        BL.appendFile filePath (BL.pack $ _bitStringToBytes bitStr)
 
 
-_encodeToBytes :: Content -> Tree Occur -> BL.ByteString
-_encodeToBytes content ft =
-    let cm                = buildCodeMap ft (Map.empty, "")
-        charCode c        = _charCode c cm
-        padWithZeroes str = replicate (length str `mod` 8) '0'
-        bitStr            = foldl (\ acc c -> acc ++ charCode c) "" content
-    in  BL.pack $ _bitStringToByte $ padWithZeroes bitStr
+-- _encodeToBytes :: Content -> Tree Occur -> BL.ByteString
+-- _encodeToBytes content ft =
+--     let cm                = buildCodeMap ft (Map.empty, "")
+--         charCode c        = _charCode c cm
+--         padWithZeroes str = str ++ replicate (length str `mod` 8) '0'
+--         bitStr            = foldl (\ acc c -> acc ++ charCode c) "" content
+--     in  BL.pack $ _bitStringToByte $ padWithZeroes bitStr
+
+
+_encodeToBytes :: Content -> Tree Occur -> FilePath -> IO String
+_encodeToBytes content ft filePath =
+    let cm                   = buildCodeMap ft (Map.empty, "")
+        encodeChar buffer c  = foldM bufferBit buffer (_charCode c cm)
+        padWithZeroes str    = if not (null str) then replicate (bufferSize - length str) '0' else ""
+        flush buffer         = BL.appendFile filePath (BL.pack $ _bitStringToBytes buffer)
+        bufferBit buffer bit =
+            let doBuffer = bit:buffer
+            in  if length buffer + 1 == bufferSize
+                    then do
+                        -- flush the buffer
+                        flush $ reverse doBuffer
+                        return ""
+                    else
+                        -- keep buffering
+                        return doBuffer
+    in  do
+        lastBuffer <- foldM encodeChar "" content
+        return (reverse lastBuffer ++ padWithZeroes lastBuffer)
 
 
 -- the bit string must have a length that is a multiple of 8
-_bitStringToByte :: String -> [Word8]
-_bitStringToByte ""   = []
-_bitStringToByte bits =
+_bitStringToBytes :: String -> [Word8]
+_bitStringToBytes ""   = []
+_bitStringToBytes bits =
     let bitsWithIdx = zip bits [0..]
         bitWeights  = foldl (\ acc b -> acc ++ [_bitWeight b]) [] bitsWithIdx
-    in  sum (take 8 bitWeights) : _bitStringToByte (drop 8 bits)
+    in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
 _bitWeight :: (Bit, Idx) -> Word8
