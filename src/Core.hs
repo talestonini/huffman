@@ -7,6 +7,7 @@ module Core
 , prettyPrintCodeMap
 , estimateCompaction
 , encodeToStr
+, encode
 ) where
 
 
@@ -178,41 +179,27 @@ _writeBitToStr buffer bit =
                 return doBuffer
 
 
--- encode :: FilePath -> IO ()
--- encode filePath = do
---     content <- readFile filePath
---     let fullFilePath = filePath ++ "-compact"
---     -- write header: frequency tree
---     BL.writeFile fullFilePath (B.encode $ freqTree content)
---     -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
---     BL.appendFile fullFilePath (B.encode $ length content)
---     -- write body: encoded content
---     -- BL.appendFile fullFilePath (...)
+encode :: Content -> FilePath -> IO ()
+encode content filePath = do
+    let ft = freqTree content
+    -- write header: frequency tree
+    BL.writeFile filePath (B.encode ft)
+    -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
+    BL.appendFile filePath (B.encode $ length content)
+    -- write body: encoded content
+    BL.appendFile filePath (_encodeToBytes content ft)
 
 
--- encodeToBytes :: Content -> IO String
--- encodeToBytes content =
---     let cm                  = codeMap content
---         encodeChar buffer c = foldM _writeBitToBytes buffer (_charCode c cm)
---         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
---     in  do
---         str <- foldM encodeChar "" content
---         return (reverse str ++ padWithZeroes str)
+_encodeToBytes :: Content -> Tree Occur -> BL.ByteString
+_encodeToBytes content ft =
+    let cm                = buildCodeMap ft (Map.empty, "")
+        charCode c        = _charCode c cm
+        padWithZeroes str = replicate (length str `mod` 8) '0'
+        bitStr            = foldl (\ acc c -> acc ++ charCode c) "" content
+    in  BL.pack $ _bitStringToByte $ padWithZeroes bitStr
 
 
--- _writeBitToBytes :: String -> Bit -> IO String
--- _writeBitToBytes buffer bit =
---     let doBuffer = bit:buffer
---     in  if length buffer + 1 == bufferSize
---             then do
---                 -- flush the buffer
---                 putStrLn $ reverse doBuffer
---                 return ""
---             else
---                 -- keep buffering
---                 return doBuffer
-
-
+-- the bit string must have a length that is a multiple of 8
 _bitStringToByte :: String -> [Word8]
 _bitStringToByte ""   = []
 _bitStringToByte bits =

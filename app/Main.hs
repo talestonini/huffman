@@ -17,6 +17,7 @@ import Text.Printf (printf)
 
 commands :: [(String, FilePath -> IO ())]
 commands =  [ ("encode", encodeCmd)
+            , ("encodeToStr", encodeToStrCmd)
             , ("decode", decodeCmd)
             , ("estimate", estimateCmd)
             , ("printFreqTree", printFreqTreeCmd)
@@ -45,6 +46,12 @@ main = do
 
 encodeCmd :: FilePath -> IO ()
 encodeCmd filePath = do
+    content <- readFile filePath
+    encode content (filePath ++ "-compact")
+
+
+encodeToStrCmd :: FilePath -> IO ()
+encodeToStrCmd filePath = do
     content <- readFile filePath
     str     <- encodeToStr content
     putStrLn str
