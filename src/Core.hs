@@ -153,7 +153,7 @@ estimateCompaction content =
 
 -- buffer size in bytes
 bufferSize :: Int
-bufferSize = 16
+bufferSize = 32
 
 
 encodeToStr :: Content -> IO String
@@ -187,19 +187,8 @@ encode content filePath = do
     -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
     BL.appendFile filePath (B.encode $ length content)
     -- write body: encoded content
-    -- BL.appendFile filePath (_encodeToBytes content ft)
-    do
-        bitStr <- _encodeToBytes content ft filePath
-        BL.appendFile filePath (BL.pack $ _bitStringToBytes bitStr)
-
-
--- _encodeToBytes :: Content -> Tree Occur -> BL.ByteString
--- _encodeToBytes content ft =
---     let cm                = buildCodeMap ft (Map.empty, "")
---         charCode c        = _charCode c cm
---         padWithZeroes str = str ++ replicate (length str `mod` 8) '0'
---         bitStr            = foldl (\ acc c -> acc ++ charCode c) "" content
---     in  BL.pack $ _bitStringToByte $ padWithZeroes bitStr
+    bitStr <- _encodeToBytes content ft filePath
+    BL.appendFile filePath (BL.pack $ _bitStringToBytes bitStr)
 
 
 _encodeToBytes :: Content -> Tree Occur -> FilePath -> IO String
