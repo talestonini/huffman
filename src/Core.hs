@@ -6,8 +6,8 @@ module Core
 , codeMap
 , prettyPrintCodeMap
 , estimateCompaction
-, encodeToStr
-, encode
+, encodeToScreen
+, encodeToFile
 ) where
 
 
@@ -156,18 +156,18 @@ bufferSize :: Int
 bufferSize = 32
 
 
-encodeToStr :: Content -> IO String
-encodeToStr content =
+encodeToScreen :: Content -> IO String
+encodeToScreen content =
     let cm                  = codeMap content
-        encodeChar buffer c = foldM _writeBitToStr buffer (_charCode c cm)
+        encodeChar buffer c = foldM _writeBitToScreen buffer (_charCode c cm)
         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
         return (reverse str ++ padWithZeroes str)
 
 
-_writeBitToStr :: String -> Bit -> IO String
-_writeBitToStr buffer bit =
+_writeBitToScreen :: String -> Bit -> IO String
+_writeBitToScreen buffer bit =
     let doBuffer = bit:buffer
     in  if length buffer + 1 == bufferSize
             then do
@@ -179,20 +179,20 @@ _writeBitToStr buffer bit =
                 return doBuffer
 
 
-encode :: Content -> FilePath -> IO ()
-encode content filePath = do
+encodeToFile :: Content -> FilePath -> IO ()
+encodeToFile content filePath = do
     let ft = freqTree content
     -- write header: frequency tree
     BL.writeFile filePath (B.encode ft)
     -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
     BL.appendFile filePath (B.encode $ length content)
     -- write body: encoded content
-    bitStr <- _encodeToBytes content ft filePath
+    bitStr <- _encodeToFile content ft filePath
     BL.appendFile filePath (BL.pack $ _bitStringToBytes bitStr)
 
 
-_encodeToBytes :: Content -> Tree Occur -> FilePath -> IO String
-_encodeToBytes content ft filePath =
+_encodeToFile :: Content -> Tree Occur -> FilePath -> IO String
+_encodeToFile content ft filePath =
     let cm                   = buildCodeMap ft (Map.empty, "")
         encodeChar buffer c  = foldM bufferBit buffer (_charCode c cm)
         padWithZeroes str    = if not (null str) then replicate (bufferSize - length str) '0' else ""

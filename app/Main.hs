@@ -47,13 +47,13 @@ main = do
 encodeCmd :: FilePath -> IO ()
 encodeCmd filePath = do
     content <- readFile filePath
-    encode content (filePath ++ "-compact")
+    encodeToFile content (filePath ++ "-compact")
 
 
 encodeToStrCmd :: FilePath -> IO ()
 encodeToStrCmd filePath = do
     content <- readFile filePath
-    str     <- encodeToStr content
+    str     <- encodeToScreen content
     putStr str
 
 
