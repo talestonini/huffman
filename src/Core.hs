@@ -19,6 +19,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Binary as B (encode)
+import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
 import GHC.Generics (Generic)
 
@@ -217,3 +218,13 @@ _bitWeight (bit, idx)
     | idx <= 0   = 0x80
     | otherwise  = shiftR 0x80 idx
 
+
+_byteToBitString :: Word8 -> String
+_byteToBitString byte =
+    reverse $ decimalToBinary byte
+    where
+        charZeroAsciiCode = 48
+        decimalToBinary d
+            | d == 0    = "0"
+            | d == 1    = "1"
+            | otherwise = BSI.w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)

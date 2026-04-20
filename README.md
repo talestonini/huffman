@@ -15,3 +15,5 @@ My implementation of the Huffman encoder in Haskell.
 
 
 ## Questions
+
+- What should Bit be: Char or a number?
