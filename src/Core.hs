@@ -159,20 +159,20 @@ bufferSize = 32
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
     let cm                  = codeMap content
-        encodeChar buffer c = foldM _writeBitToScreen buffer (_charCode c cm)
+        encodeChar buffer c = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
         return (reverse str ++ padWithZeroes str)
 
 
-_writeBitToScreen :: String -> Bit -> IO String
-_writeBitToScreen buffer bit =
+_bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
+_bufferBit ioFn buffer bit =
     let doBuffer = bit:buffer
     in  if length buffer + 1 == bufferSize
             then do
                 -- flush the buffer
-                putStrLn $ reverse doBuffer
+                ioFn $ reverse doBuffer
                 return ""
             else
                 -- keep buffering
@@ -194,19 +194,9 @@ encodeToFile content filePath = do
 _encodeToFile :: Content -> Tree Occur -> FilePath -> IO String
 _encodeToFile content ft filePath =
     let cm                   = buildCodeMap ft (Map.empty, "")
-        encodeChar buffer c  = foldM bufferBit buffer (_charCode c cm)
-        padWithZeroes str    = if not (null str) then replicate (bufferSize - length str) '0' else ""
         flush buffer         = BL.appendFile filePath (BL.pack $ _bitStringToBytes buffer)
-        bufferBit buffer bit =
-            let doBuffer = bit:buffer
-            in  if length buffer + 1 == bufferSize
-                    then do
-                        -- flush the buffer
-                        flush $ reverse doBuffer
-                        return ""
-                    else
-                        -- keep buffering
-                        return doBuffer
+        encodeChar buffer c  = foldM (_bufferBit flush) buffer (_charCode c cm)
+        padWithZeroes str    = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         lastBuffer <- foldM encodeChar "" content
         return (reverse lastBuffer ++ padWithZeroes lastBuffer)
