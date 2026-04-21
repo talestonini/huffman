@@ -34,10 +34,6 @@ type Bit = Char
 type Idx = Int
 
 
-_charCode :: Char -> CodeMap -> Code
-_charCode c cm = fromMaybe "" (Map.lookup c cm)
-
-
 --
 -- Builds the frequency tree by traversing the list of leaves.  A leaf has a distinct character from the input file and
 -- its corresponding frequency (occurrence count) in the file.
@@ -59,6 +55,27 @@ _buildFreqTree (t1:t2:ts) =
         comparingNodeValue Empty             _                 = LT
         comparingNodeValue (Node _ _ _)      Empty             = GT
     in  _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
+
+
+--
+-- Builds the frequency tree from the input file.  Note that each distinct character in the input string is converted to
+-- a single-character string in the output map.
+-- 
+-- IN:
+-- - Content...: input file content
+-- 
+-- OUT:
+-- - Tree Occur: the frequency tree
+-- 
+freqTree :: Content -> Tree Occur
+freqTree str =
+        -- build the character frequency map
+    let buildFreqMap   = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
+        -- sort it by frequency
+        sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
+        -- convert list of character -> frequency in to a list of tree leaves
+        toLeafList     = List.map (\ a -> Node a Empty Empty)
+    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
 
 -- 
@@ -86,27 +103,6 @@ buildCodeMap (Node v left right) (cm, code)
 
 
 --
--- Builds the frequency tree from the input file.  Note that each distinct character in the input string is converted to
--- a single-character string in the output map.
--- 
--- IN:
--- - Content...: input file content
--- 
--- OUT:
--- - Tree Occur: the frequency tree
--- 
-freqTree :: Content -> Tree Occur
-freqTree str =
-        -- build the character frequency map
-    let buildFreqMap   = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
-        -- sort it by frequency
-        sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
-        -- convert list of character -> frequency in to a list of tree leaves
-        toLeafList     = List.map (\ a -> Node a Empty Empty)
-    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
-
-
---
 -- Builds the map of character (key) to code (value) from the input file.
 --
 -- IN:
@@ -117,6 +113,10 @@ freqTree str =
 -- 
 codeMap :: Content -> CodeMap
 codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
+
+
+_charCode :: Char -> CodeMap -> Code
+_charCode c cm = fromMaybe "" (Map.lookup c cm)
 
 
 --

@@ -16,14 +16,14 @@ import Text.Printf (printf)
 
 
 commands :: [(String, FilePath -> IO ())]
-commands =  [ ("encode", encodeCmd)
-            , ("encodeToStr", encodeToStrCmd)
-            , ("decode", decodeCmd)
-            , ("estimate", estimateCmd)
-            , ("printFreqTree", printFreqTreeCmd)
+commands =  [ ("printFreqTree", printFreqTreeCmd)
             , ("printCodeMap", printCodeMapCmd)
+            , ("estimate", estimateCmd)
             , ("saveFreqTree", saveFreqTreeCmd)
             , ("loadFreqTree", loadFreqTreeCmd)
+            , ("encodeToScreen", encodeToScreenCmd)
+            , ("encode", encodeCmd)
+            , ("decode", decodeCmd)
             ]
 
 
@@ -44,29 +44,6 @@ main = do
         _               -> putStrLn ("Invalid arguments.\n\n" ++ usage)
 
 
-encodeCmd :: FilePath -> IO ()
-encodeCmd filePath = do
-    content <- readFile filePath
-    encodeToFile content (filePath ++ "-compact")
-
-
-encodeToStrCmd :: FilePath -> IO ()
-encodeToStrCmd filePath = do
-    content <- readFile filePath
-    str     <- encodeToScreen content
-    putStr str
-
-
-decodeCmd :: FilePath -> IO ()
-decodeCmd = undefined
-
-
-estimateCmd :: FilePath -> IO ()
-estimateCmd filePath = do
-    content <- readFile filePath
-    printf "Estimated compaction rate: %.3f\n" (estimateCompaction content)
-
-
 printFreqTreeCmd :: FilePath -> IO ()
 printFreqTreeCmd filePath = do
     content <- readFile filePath
@@ -77,6 +54,12 @@ printCodeMapCmd :: FilePath -> IO ()
 printCodeMapCmd filePath = do
     content <- readFile filePath
     putStrLn $ prettyPrintCodeMap $ codeMap content
+
+
+estimateCmd :: FilePath -> IO ()
+estimateCmd filePath = do
+    content <- readFile filePath
+    printf "Estimated compaction rate: %.3f\n" (estimateCompaction content)
 
 
 saveFreqTreeCmd :: FilePath -> IO ()
@@ -95,3 +78,20 @@ loadFreqTreeCmd filePath = do
     print ft
     putStrLn ""
     putStrLn (prettyPrintCodeMap cm)
+
+
+encodeToScreenCmd :: FilePath -> IO ()
+encodeToScreenCmd filePath = do
+    content <- readFile filePath
+    str     <- encodeToScreen content
+    putStr str
+
+
+encodeCmd :: FilePath -> IO ()
+encodeCmd filePath = do
+    content <- readFile filePath
+    encodeToFile content (filePath ++ "-compact")
+
+
+decodeCmd :: FilePath -> IO ()
+decodeCmd = undefined
