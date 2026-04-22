@@ -8,7 +8,9 @@
 module Main where
 
 import Core
-import qualified Data.Binary as B (encode, decode)
+import qualified Data.Binary as B
+import Data.Binary.Get (getInt64le, runGet)
+import Data.Binary.Put (putInt64le, runPut)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import System.Directory.Internal.Prelude (getArgs)
@@ -66,18 +68,26 @@ saveFreqTreeCmd :: FilePath -> IO ()
 saveFreqTreeCmd filePath = do
     content <- readFile filePath
     let fullFilePath = filePath ++ "-compact"
-    BL.writeFile fullFilePath (B.encode $ freqTree content)
+        bytes = runPut $ do
+            B.put $ freqTree content
+            putInt64le $ fromIntegral (length content)
+    BL.writeFile fullFilePath bytes
 
 
 loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
-    let fullFilePath = filePath ++ "-compact"
-    binaryContent <- BL.readFile fullFilePath
-    let ft = B.decode binaryContent :: Tree Occur
-        cm = buildCodeMap ft (Map.empty, "")
+    binaryContent <- BL.readFile (filePath ++ "-compact")
+    let cm        = buildCodeMap ft (Map.empty, "")
+        (ft, len) = runGet (do
+            ft'  <- B.get
+            len' <- getInt64le
+            return (ft', len')
+            ) binaryContent
     print ft
     putStrLn ""
     putStrLn (prettyPrintCodeMap cm)
+    putStrLn ""
+    putStrLn $ "Text length: " ++ show len
 
 
 encodeToScreenCmd :: FilePath -> IO ()
