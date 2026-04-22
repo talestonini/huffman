@@ -9,8 +9,8 @@ module Main where
 
 import Core
 import qualified Data.Binary as B
-import Data.Binary.Get (getInt64le, runGet)
-import Data.Binary.Put (putInt64le, runPut)
+import Data.Binary.Get (runGet, getInt64le)
+import Data.Binary.Put (runPut, putInt64le)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import System.Directory.Internal.Prelude (getArgs)
@@ -76,13 +76,13 @@ saveFreqTreeCmd filePath = do
 
 loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
-    binaryContent <- BL.readFile (filePath ++ "-compact")
+    bytes <- BL.readFile (filePath ++ "-compact")
     let cm        = buildCodeMap ft (Map.empty, "")
         (ft, len) = runGet (do
             ft'  <- B.get
             len' <- getInt64le
             return (ft', len')
-            ) binaryContent
+            ) bytes 
     print ft
     putStrLn ""
     putStrLn (prettyPrintCodeMap cm)
