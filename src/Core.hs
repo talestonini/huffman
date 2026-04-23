@@ -72,11 +72,11 @@ _buildFreqTree (t1:t2:ts) =
 freqTree :: Content -> Tree Occur
 freqTree str =
         -- build the character frequency map
-    let buildFreqMap   = foldr (\ c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
+    let buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
         -- sort it by frequency
         sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
         -- convert list of character -> frequency in to a list of tree leaves
-        toLeafList     = List.map (\ a -> Node a Empty Empty)
+        toLeafList     = List.map (\a -> Node a Empty Empty)
     in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
 
 
@@ -134,7 +134,7 @@ prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
     let code k     = _charCode k cm
         numEntries = "\nEntry count: " ++ show (length cm)
-    in  foldl (\ acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
+    in  foldl (\acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
 
 
 --
@@ -148,9 +148,9 @@ prettyPrintCodeMap cm =
 --
 estimateCompaction :: Content -> Double
 estimateCompaction content =
-    let ogSizeBits     = length content * 8 -- size in bits
+    let ogSizeBits     = length content * 8  -- size in bits
         cm             = codeMap content
-        encodedLenBits = foldr (\ c acc -> acc + length (_charCode c cm)) 0 content
+        encodedLenBits = foldr (\c acc -> acc + length (_charCode c cm)) 0 content
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
@@ -185,7 +185,7 @@ _bufferBit ioFn buffer bit =
 encodeToFile :: Content -> FilePath -> IO ()
 encodeToFile content filePath = do
     let ft = freqTree content
-    withBinaryFile filePath WriteMode $ \ h -> do
+    withBinaryFile filePath WriteMode $ \h -> do
         let len = int64LE $ fromIntegral $ length content
             _ft = execPut (put ft)
         -- write header: frequency tree and content length (because the last buffer 
@@ -218,7 +218,7 @@ _bitStringToBytes :: String -> [Word8]
 _bitStringToBytes ""   = []
 _bitStringToBytes bits =
     let bitsWithIdx = zip bits [0..]
-        bitWeights  = foldl (\ acc b -> acc ++ [_bitWeight b]) [] bitsWithIdx
+        bitWeights  = foldl (\acc b -> acc ++ [_bitWeight b]) [] bitsWithIdx
     in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
