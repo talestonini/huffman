@@ -12,7 +12,7 @@ module Core
 ) where
 
 
-import Control.Monad (foldM, unless)
+import Control.Monad (foldM, unless, foldM_)
 import qualified Data.Binary as B
 import Data.Binary.Get (runGet, getInt64le, getRemainingLazyByteString)
 import Data.Binary.Put (execPut)
@@ -235,29 +235,49 @@ _bitWeight (bit, idx)
 decode :: FilePath -> IO ()
 decode filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
-    let outFile = filePath ++ "-expanded"
+    let outFile = filePath ++ "-inflated"
 
         (len, ft :: Tree Occur, binaryContent) = runGet (do
             _len           <- getInt64le                  -- content lenght
             _ft            <- B.get                       -- frequency tree
             _binaryContent <- getRemainingLazyByteString  -- compacted content
-            return (_len, _ft, _binaryContent)
+            return (fromIntegral _len, _ft, _binaryContent)
             ) bytes
 
+        theEnd = (Empty, len)
+
         traverseTree :: (Tree Occur, Int) -> Bit -> IO (Tree Occur, Int)
-        traverseTree ((Node _ left  _    ), i) '0' =
-            return $ if i == fromIntegral len then (Empty, i) else (left, i)
-        traverseTree ((Node _ _     right), i) '1' =
-            return $ if i == fromIntegral len then (Empty, i) else (right, i)
-        traverseTree ((Node c Empty Empty), i) bit =
-            if i == fromIntegral len
-                then return (Empty, i)
+        traverseTree (Empty                           , _) _   = do
+            putStrLn "Unexpected end with empty tree"
+            return theEnd  -- invalid: ft should not be empty
+        traverseTree (Node _ left  _                  , i) '0' = do
+            putStrLn "To the left..."
+            return $ if i == len then theEnd else (left, i)
+        traverseTree (Node _ _            right       , i) '1' = do
+            putStrLn "To the right..."
+            return $ if i == len then theEnd else (right, i)
+        traverseTree (Node _ (Node _ _ _) _           , _) _   = do
+            putStrLn "Unexpected end with tree cotaining only left branch"
+            return theEnd  -- invalid: tree always has 2 branches
+        traverseTree (Node _ Empty        (Node _ _ _), _) _   = do
+            putStrLn "Unexpected end with tree cotaining only right branch"
+            return theEnd  -- invalid: tree always has 2 branches
+        traverseTree (Node n Empty        Empty       , i) bit =
+            if i == len
+                then return theEnd
                 else do
-                    appendFile outFile (fst c)
+                    appendFile outFile (fst n)
+                    putStrLn $ "char count i=" ++ show i
                     traverseTree (ft, i+1) bit
 
-        decodeByte b i = foldM traverseTree (ft, i) (_byteToBitString b)
+        decodeByte b ftLoc i = foldM traverseTree (ftLoc, i) (_byteToBitString b)
+
     writeFile outFile ""
+    foldM_ (\(ftLoc, i) b -> do
+        (outFtLoc, writtenCharCount) <- decodeByte b ftLoc i
+        putStrLn $ "out i=" ++ show i
+        return (outFtLoc, writtenCharCount)
+        ) (ft, 0) (BL.unpack binaryContent)
 
 
 _byteToBitString :: B.Word8 -> String

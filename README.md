@@ -9,6 +9,11 @@ My implementation of the Huffman encoder in Haskell.
     cabal run tt-huffman decode file.txt
 
 
+## Inspect Binary File
+
+    xxd test/resources/file.bin
+
+
 ## TO-DO
 
 - Check places where instead of using `let ... in` you could use `... where`.
