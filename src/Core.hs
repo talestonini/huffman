@@ -148,7 +148,10 @@ prettyPrintCodeMap cm =
 
 
 --
--- Provides an estimate rate for the compaction of the input file.
+-- Provides an estimate rate for the compaction of the input file.  Note it is just an estimate, for the following
+-- reasons:
+-- - chars do not always fit into 1 byte (like in the logic applied here)
+-- - compacted files will have a header with the content length (in number of chars) and the frequency tree
 --
 -- IN:
 -- - Content: the input file content
@@ -171,12 +174,12 @@ _bufferSize = 8
 
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
-    let cm                     = codeMap content
-        encodeChar buffer c    = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
-        zeroesRightPadding str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+    let cm                         = codeMap content
+        encodeChar buffer c        = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
+        rightPaddingWithZeroes str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
-        return (reverse str ++ zeroesRightPadding str)
+        return (reverse str ++ rightPaddingWithZeroes str)
 
 
 _bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
@@ -209,17 +212,17 @@ encodeToFile content filePath = do
 
 _encodeToFile :: Content -> Tree Occur -> Handle -> IO String
 _encodeToFile content ft h =
-    let cm                     = buildCodeMap ft (Map.empty, "")
-        _flush buffer          = hPutBuilder h (word8 $ _bitStringToByte buffer)
-        charCode c             = _charCode c cm
-        encodeChar buffer c    = foldM (_bufferBit _flush) buffer (charCode c)
-        zeroesRightPadding str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+    let cm                         = buildCodeMap ft (Map.empty, "")
+        _flush buffer              = hPutBuilder h (word8 $ _bitStringToByte buffer)
+        charCode c                 = _charCode c cm
+        encodeChar buffer c        = foldM (_bufferBit _flush) buffer (charCode c)
+        rightPaddingWithZeroes str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
         lastByte <- foldM encodeChar "" content
-        return (reverse lastByte ++ zeroesRightPadding lastByte)
+        return (reverse lastByte ++ rightPaddingWithZeroes lastByte)
 
 
--- can only use this if the buffer size is 8
+-- can only use this if the buffer size is 8 (due to the encoding function word8)
 _bitStringToByte :: String -> B.Word8
 _bitStringToByte = head . _bitStringToBytes
 
