@@ -21,8 +21,8 @@ commands :: [(String, FilePath -> IO ())]
 commands =  [ ("printFreqTree", printFreqTreeCmd)
             , ("printCodeMap", printCodeMapCmd)
             , ("estimate", estimateCmd)
-            , ("saveFreqTree", saveFreqTreeCmd)
-            , ("loadFreqTree", loadFreqTreeCmd)
+            , ("saveHeader", saveHeaderCmd)
+            , ("loadHeader", loadHeaderCmd)
             , ("encodeToScreen", encodeToScreenCmd)
             , ("encode", encodeCmd)
             , ("decode", decodeCmd)
@@ -64,8 +64,8 @@ estimateCmd filePath = do
     printf "Estimated compaction rate: %.3f\n" (estimateCompaction content)
 
 
-saveFreqTreeCmd :: FilePath -> IO ()
-saveFreqTreeCmd filePath = do
+saveHeaderCmd :: FilePath -> IO ()
+saveHeaderCmd filePath = do
     content <- readFile filePath
     let fullFilePath = filePath ++ "-compact"
         bytes = runPut $ do
@@ -74,8 +74,8 @@ saveFreqTreeCmd filePath = do
     BL.writeFile fullFilePath bytes
 
 
-loadFreqTreeCmd :: FilePath -> IO ()
-loadFreqTreeCmd filePath = do
+loadHeaderCmd :: FilePath -> IO ()
+loadHeaderCmd filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
     let cm        = buildCodeMap ft (Map.empty, "")
         (len, ft) = runGet (do
