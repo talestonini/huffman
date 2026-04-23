@@ -8,11 +8,13 @@ module Core
 , estimateCompaction
 , encodeToScreen
 , encodeToFile
+, decode
 ) where
 
 
 import Control.Monad (foldM, unless)
-import Data.Binary (Word8, Binary(put))
+import qualified Data.Binary as B
+import Data.Binary.Get (runGet, getInt64le, getRemainingLazyByteString)
 import Data.Binary.Put (execPut)
 import Data.Bits (Bits(shiftR))
 import Data.ByteString.Builder (int64LE, hPutBuilder, word8)
@@ -28,7 +30,7 @@ import System.IO (withBinaryFile, IOMode(WriteMode), Handle)
 
 type Occur = (String, Int)
 data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
-instance (Binary a) => Binary (Tree a)
+instance (B.Binary a) => B.Binary (Tree a)
 type Content = String
 type Code = String
 type CodeMap = Map.Map Char Code
@@ -187,7 +189,7 @@ encodeToFile content filePath = do
     let ft = freqTree content
     withBinaryFile filePath WriteMode $ \h -> do
         let contentLen      = int64LE $ fromIntegral $ length content
-            encodedFreqTree = execPut (put ft)
+            encodedFreqTree = execPut (B.put ft)
         -- write header: content length (because the last byte is padded and we
         --               must stop decoding at the length) and frequency tree
         hPutBuilder h (contentLen <> encodedFreqTree)
@@ -210,11 +212,12 @@ _encodeToFile content ft h =
 
 
 -- can only use this if the buffer size is 8
-_bitStringToByte :: String -> Word8
+_bitStringToByte :: String -> B.Word8
 _bitStringToByte = head . _bitStringToBytes
 
+
 -- the bit string must have a length that is a multiple of 8
-_bitStringToBytes :: String -> [Word8]
+_bitStringToBytes :: String -> [B.Word8]
 _bitStringToBytes ""   = []
 _bitStringToBytes bits =
     let bitsWithIdx = zip bits [0..]
@@ -222,18 +225,42 @@ _bitStringToBytes bits =
     in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
-_bitWeight :: (Bit, Idx) -> Word8
+_bitWeight :: (Bit, Idx) -> B.Word8
 _bitWeight (bit, idx)
     | bit == '0' = 0x00
     | idx <= 0   = 0x80
     | otherwise  = shiftR 0x80 idx
 
 
-decode :: BL.ByteString -> FilePath -> IO ()
-decode bytes filePath = undefined
+decode :: FilePath -> IO ()
+decode filePath = do
+    bytes <- BL.readFile (filePath ++ "-compact")
+    let outFile = filePath ++ "-expanded"
+
+        (len, ft :: Tree Occur, binaryContent) = runGet (do
+            _len           <- getInt64le                  -- content lenght
+            _ft            <- B.get                       -- frequency tree
+            _binaryContent <- getRemainingLazyByteString  -- compacted content
+            return (_len, _ft, _binaryContent)
+            ) bytes
+
+        traverseTree :: (Tree Occur, Int) -> Bit -> IO (Tree Occur, Int)
+        traverseTree ((Node _ left  _    ), i) '0' =
+            return $ if i == fromIntegral len then (Empty, i) else (left, i)
+        traverseTree ((Node _ _     right), i) '1' =
+            return $ if i == fromIntegral len then (Empty, i) else (right, i)
+        traverseTree ((Node c Empty Empty), i) bit =
+            if i == fromIntegral len
+                then return (Empty, i)
+                else do
+                    appendFile outFile (fst c)
+                    traverseTree (ft, i+1) bit
+
+        decodeByte b i = foldM traverseTree (ft, i) (_byteToBitString b)
+    writeFile outFile ""
 
 
-_byteToBitString :: Word8 -> String
+_byteToBitString :: B.Word8 -> String
 _byteToBitString byte =
     reverse $ decimalToBinary byte
     where

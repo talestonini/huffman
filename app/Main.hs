@@ -104,4 +104,4 @@ encodeCmd filePath = do
 
 
 decodeCmd :: FilePath -> IO ()
-decodeCmd = undefined
+decodeCmd = decode
