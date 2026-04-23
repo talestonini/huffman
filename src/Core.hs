@@ -12,7 +12,7 @@ module Core
 ) where
 
 
-import Control.Monad (foldM, unless, foldM_)
+import Control.Monad (foldM, unless, foldM_, when)
 import qualified Data.Binary as B
 import Data.Binary.Get (runGet, getInt64le, getRemainingLazyByteString)
 import Data.Binary.Put (execPut)
@@ -36,6 +36,14 @@ type Code = String
 type CodeMap = Map.Map Char Code
 type Bit = Char
 type Idx = Int
+
+
+_debugEnabled :: Bool
+_debugEnabled = False
+
+
+_debugLog :: String -> IO ()
+_debugLog str = when _debugEnabled $ putStrLn str
 
 
 --
@@ -157,24 +165,24 @@ estimateCompaction content =
 
 
 -- buffer size in bytes (must be 8 if encoding with word8)
-bufferSize :: Int
-bufferSize = 8
+_bufferSize :: Int
+_bufferSize = 8
 
 
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
-    let cm                  = codeMap content
-        encodeChar buffer c = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
-        padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
+    let cm                     = codeMap content
+        encodeChar buffer c    = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
+        zeroesRightPadding str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
         str <- foldM encodeChar "" content
-        return (reverse str ++ padWithZeroes str)
+        return (reverse str ++ zeroesRightPadding str)
 
 
 _bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
 _bufferBit ioFn buffer bit =
     let doBuffer = bit:buffer
-    in  if length buffer + 1 == bufferSize
+    in  if length buffer + 1 == _bufferSize
             then do
                 -- flush the buffer
                 ioFn $ reverse doBuffer
@@ -201,14 +209,14 @@ encodeToFile content filePath = do
 
 _encodeToFile :: Content -> Tree Occur -> Handle -> IO String
 _encodeToFile content ft h =
-    let cm                  = buildCodeMap ft (Map.empty, "")
-        _flush buffer       = hPutBuilder h (word8 $ _bitStringToByte buffer)
-        charCode c          = _charCode c cm
-        encodeChar buffer c = foldM (_bufferBit _flush) buffer (charCode c)
-        padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
+    let cm                     = buildCodeMap ft (Map.empty, "")
+        _flush buffer          = hPutBuilder h (word8 $ _bitStringToByte buffer)
+        charCode c             = _charCode c cm
+        encodeChar buffer c    = foldM (_bufferBit _flush) buffer (charCode c)
+        zeroesRightPadding str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
         lastByte <- foldM encodeChar "" content
-        return (reverse lastByte ++ padWithZeroes lastByte)
+        return (reverse lastByte ++ zeroesRightPadding lastByte)
 
 
 -- can only use this if the buffer size is 8
@@ -247,45 +255,47 @@ decode filePath = do
         theEnd = (Empty, len)
 
         traverseTree :: (Tree Occur, Int) -> Bit -> IO (Tree Occur, Int)
-        traverseTree (Empty                           , _) _   = do
-            putStrLn "Unexpected end with empty tree"
-            return theEnd  -- invalid: ft should not be empty
-        traverseTree (Node _ left  _                  , i) '0' = do
-            putStrLn "To the left..."
-            return $ if i == len then theEnd else (left, i)
-        traverseTree (Node _ _            right       , i) '1' = do
-            putStrLn "To the right..."
-            return $ if i == len then theEnd else (right, i)
-        traverseTree (Node _ (Node _ _ _) _           , _) _   = do
-            putStrLn "Unexpected end with tree cotaining only left branch"
-            return theEnd  -- invalid: tree always has 2 branches
-        traverseTree (Node _ Empty        (Node _ _ _), _) _   = do
-            putStrLn "Unexpected end with tree cotaining only right branch"
-            return theEnd  -- invalid: tree always has 2 branches
-        traverseTree (Node n Empty        Empty       , i) bit =
+        traverseTree (Node n Empty        Empty       , i) bit = do
+            _debugLog $ "got to a leaf: char='" ++ fst n ++ "'"
             if i == len
                 then return theEnd
                 else do
                     appendFile outFile (fst n)
-                    putStrLn $ "char count i=" ++ show i
+                    _debugLog $ "char count i=" ++ show (i+1)
                     traverseTree (ft, i+1) bit
+        traverseTree (Node _ left  _                  , i) '0' = do
+            _debugLog "to the left..."
+            return $ if i == len then theEnd else (left, i)
+        traverseTree (Node _ _            right       , i) '1' = do
+            _debugLog "to the right..."
+            return $ if i == len then theEnd else (right, i)
+        traverseTree (Empty                           , _) _   = do
+            _debugLog "the end with empty tree"
+            return theEnd  -- invalid: ft should not be empty
+        traverseTree (Node _ (Node _ _ _) _           , _) _   = do
+            _debugLog "unexpected end with tree cotaining only left branch"
+            return theEnd  -- invalid: tree always has 2 branches
+        traverseTree (Node _ Empty        (Node _ _ _), _) _   = do
+            _debugLog "unexpected end with tree cotaining only right branch"
+            return theEnd  -- invalid: tree always has 2 branches
 
         decodeByte b ftLoc i = foldM traverseTree (ftLoc, i) (_byteToBitString b)
 
     writeFile outFile ""
     foldM_ (\(ftLoc, i) b -> do
         (outFtLoc, writtenCharCount) <- decodeByte b ftLoc i
-        putStrLn $ "out i=" ++ show i
         return (outFtLoc, writtenCharCount)
         ) (ft, 0) (BL.unpack binaryContent)
 
 
 _byteToBitString :: B.Word8 -> String
 _byteToBitString byte =
-    reverse $ decimalToBinary byte
+    leftPadWithZeroes bitString
     where
         charZeroAsciiCode = 48
         decimalToBinary d
             | d == 0    = "0"
             | d == 1    = "1"
             | otherwise = w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
+        bitString             = reverse $ decimalToBinary byte
+        leftPadWithZeroes str = replicate (8 - length str) '0' ++ str
