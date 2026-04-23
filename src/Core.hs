@@ -50,7 +50,7 @@ _buildFreqTree :: [Tree Occur] -> Tree Occur
 _buildFreqTree []         = Empty
 _buildFreqTree [t]        = t
 _buildFreqTree (t1:t2:ts) =
-    let mergeTrees         t1'@(Node v1 _ _) t2'@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) t1' t2'
+    let mergeTrees         _t1@(Node v1 _ _) _t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) _t1 _t2
         mergeTrees         Empty             _                 = Empty
         mergeTrees         (Node _ _ _)      Empty             = Empty
         comparingNodeValue (Node v1 _ _)     (Node v2 _ _)     = snd v1 `compare` snd v2
@@ -186,11 +186,11 @@ encodeToFile :: Content -> FilePath -> IO ()
 encodeToFile content filePath = do
     let ft = freqTree content
     withBinaryFile filePath WriteMode $ \h -> do
-        let len = int64LE $ fromIntegral $ length content
-            _ft = execPut (put ft)
-        -- write header: frequency tree and content length (because the last buffer 
-        --               is padded and we must stop decoding at the length)
-        hPutBuilder h (len <> _ft)
+        let contentLen      = int64LE $ fromIntegral $ length content
+            encodedFreqTree = execPut (put ft)
+        -- write header: content length (because the last byte is padded and we
+        --               must stop decoding at the length) and frequency tree
+        hPutBuilder h (contentLen <> encodedFreqTree)
         -- write body: encoded content
         lastByte <- _encodeToFile content ft h
         unless (null lastByte) $

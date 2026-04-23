@@ -69,8 +69,8 @@ saveFreqTreeCmd filePath = do
     content <- readFile filePath
     let fullFilePath = filePath ++ "-compact"
         bytes = runPut $ do
-            B.put $ freqTree content
             putInt64le $ fromIntegral (length content)
+            B.put $ freqTree content
     BL.writeFile fullFilePath bytes
 
 
@@ -78,10 +78,10 @@ loadFreqTreeCmd :: FilePath -> IO ()
 loadFreqTreeCmd filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
     let cm        = buildCodeMap ft (Map.empty, "")
-        (ft, len) = runGet (do
-            ft'  <- B.get
-            len' <- getInt64le
-            return (ft', len')
+        (len, ft) = runGet (do
+            _len <- getInt64le
+            _ft  <- B.get
+            return (_len, _ft)
             ) bytes 
     print ft
     putStrLn ""
