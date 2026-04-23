@@ -12,21 +12,23 @@ module Core
 
 
 import Control.Monad (foldM)
-import Data.Binary (Binary, Word8)
+import qualified Data.Binary as B
+import qualified Data.Binary.Put as B
 import Data.Bits (Bits(shiftR))
+import Data.ByteString.Builder (int64LE, hPutBuilder)
+import qualified Data.ByteString.Internal as BI
+import qualified Data.ByteString.Lazy as BL
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import qualified Data.Binary as B (encode)
-import qualified Data.ByteString.Internal as BSI
-import qualified Data.ByteString.Lazy as BL
 import GHC.Generics (Generic)
+import System.IO (withBinaryFile, IOMode(WriteMode), Handle)
 
 
 type Occur = (String, Int)
 data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
-instance (Binary a) => Binary (Tree a)
+instance (B.Binary a) => B.Binary (Tree a)
 type Content = String
 type Code = String
 type CodeMap = Map.Map Char Code
@@ -183,28 +185,31 @@ _bufferBit ioFn buffer bit =
 encodeToFile :: Content -> FilePath -> IO ()
 encodeToFile content filePath = do
     let ft = freqTree content
-    -- write header: frequency tree
-    BL.writeFile filePath (B.encode ft)
-    -- write header: content length (because the very last byte is padded and we must stop decoding at the length)
-    BL.appendFile filePath (B.encode $ length content)
-    -- write body: encoded content
-    bitStr <- _encodeToFile content ft filePath
-    BL.appendFile filePath (BL.pack $ _bitStringToBytes bitStr)
+    withBinaryFile filePath WriteMode $ \ h -> do
+        let len = int64LE $ fromIntegral $ length content
+            ft' = B.execPut $ B.put ft
+        -- write header: frequency tree and content length (because the last buffer is padded and we must stop decoding
+        --               at the length)
+        hPutBuilder h (len <> ft')
+        -- write body: encoded content
+        bitStr <- _encodeToFile content ft h
+        hPutBuilder h (B.execPut $ B.put $ _bitStringToBytes bitStr)
 
 
-_encodeToFile :: Content -> Tree Occur -> FilePath -> IO String
-_encodeToFile content ft filePath =
-    let cm                   = buildCodeMap ft (Map.empty, "")
-        flush buffer         = BL.appendFile filePath (BL.pack $ _bitStringToBytes buffer)
-        encodeChar buffer c  = foldM (_bufferBit flush) buffer (_charCode c cm)
-        padWithZeroes str    = if not (null str) then replicate (bufferSize - length str) '0' else ""
+_encodeToFile :: Content -> Tree Occur -> Handle -> IO String
+_encodeToFile content ft h =
+    let cm                  = buildCodeMap ft (Map.empty, "")
+        flush buffer        = hPutBuilder h (B.execPut $ B.put $ _bitStringToBytes buffer)
+        charCode c          = _charCode c cm
+        encodeChar buffer c = foldM (_bufferBit flush) buffer (charCode c)
+        padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
         lastBuffer <- foldM encodeChar "" content
         return (reverse lastBuffer ++ padWithZeroes lastBuffer)
 
 
 -- the bit string must have a length that is a multiple of 8
-_bitStringToBytes :: String -> [Word8]
+_bitStringToBytes :: String -> [B.Word8]
 _bitStringToBytes ""   = []
 _bitStringToBytes bits =
     let bitsWithIdx = zip bits [0..]
@@ -212,14 +217,18 @@ _bitStringToBytes bits =
     in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
-_bitWeight :: (Bit, Idx) -> Word8
+_bitWeight :: (Bit, Idx) -> B.Word8
 _bitWeight (bit, idx)
     | bit == '0' = 0x00
     | idx <= 0   = 0x80
     | otherwise  = shiftR 0x80 idx
 
 
-_byteToBitString :: Word8 -> String
+decode :: BL.ByteString -> FilePath -> IO ()
+decode bytes filePath = undefined
+
+
+_byteToBitString :: B.Word8 -> String
 _byteToBitString byte =
     reverse $ decimalToBinary byte
     where
@@ -227,4 +236,4 @@ _byteToBitString byte =
         decimalToBinary d
             | d == 0    = "0"
             | d == 1    = "1"
-            | otherwise = BSI.w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
+            | otherwise = BI.w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
