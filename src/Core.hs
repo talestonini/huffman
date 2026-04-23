@@ -11,11 +11,11 @@ module Core
 ) where
 
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, unless)
 import Data.Binary (Word8, Binary(put))
 import Data.Binary.Put (execPut)
 import Data.Bits (Bits(shiftR))
-import Data.ByteString.Builder (int64LE, hPutBuilder)
+import Data.ByteString.Builder (int64LE, hPutBuilder, word8)
 import Data.ByteString.Internal (w2c)
 import qualified Data.ByteString.Lazy as BL
 import Data.Function (on)
@@ -154,7 +154,7 @@ estimateCompaction content =
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
--- buffer size in bytes
+-- buffer size in bytes (must be 8 if encoding with word8)
 bufferSize :: Int
 bufferSize = 8
 
@@ -192,21 +192,26 @@ encodeToFile content filePath = do
         --               is padded and we must stop decoding at the length)
         hPutBuilder h (len <> _ft)
         -- write body: encoded content
-        bitStr <- _encodeToFile content ft h
-        hPutBuilder h (execPut $ put $ _bitStringToBytes bitStr)
+        lastByte <- _encodeToFile content ft h
+        unless (null lastByte) $
+            hPutBuilder h (word8 $ _bitStringToByte lastByte)
 
 
 _encodeToFile :: Content -> Tree Occur -> Handle -> IO String
 _encodeToFile content ft h =
     let cm                  = buildCodeMap ft (Map.empty, "")
-        _flush buffer       = hPutBuilder h (execPut $ put $ _bitStringToBytes buffer)
+        _flush buffer       = hPutBuilder h (word8 $ _bitStringToByte buffer)
         charCode c          = _charCode c cm
         encodeChar buffer c = foldM (_bufferBit _flush) buffer (charCode c)
         padWithZeroes str   = if not (null str) then replicate (bufferSize - length str) '0' else ""
     in  do
-        lastBuffer <- foldM encodeChar "" content
-        return (reverse lastBuffer ++ padWithZeroes lastBuffer)
+        lastByte <- foldM encodeChar "" content
+        return (reverse lastByte ++ padWithZeroes lastByte)
 
+
+-- can only use this if the buffer size is 8
+_bitStringToByte :: String -> Word8
+_bitStringToByte = head . _bitStringToBytes
 
 -- the bit string must have a length that is a multiple of 8
 _bitStringToBytes :: String -> [Word8]
