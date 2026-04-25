@@ -69,20 +69,25 @@ estimateCmd filePath = do
 saveHeaderCmd :: FilePath -> IO ()
 saveHeaderCmd filePath = do
     content <- readFile filePath
-    let bytes = runPut $ do
+    let
+        bytes = runPut $ do
             putInt64le $ fromIntegral (length content)
             B.put $ freqTree content
+
     BL.writeFile (filePath ++ "-compact") bytes
 
 
 loadHeaderCmd :: FilePath -> IO ()
 loadHeaderCmd filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
-    let (len, ft) = runGet (do
-            _len <- getInt64le
-            _ft  <- B.get
-            return (_len, _ft)
+    let
+        (len, ft) = runGet (
+            do
+                _len <- getInt64le
+                _ft  <- B.get
+                return (_len, _ft)
             ) bytes 
+
     putStrLn $ prettyPrintFreqTree ft
     putStrLn ""
     putStrLn $ "Characters length: " ++ show len

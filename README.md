@@ -14,11 +14,6 @@ My implementation of the Huffman encoder in Haskell.
     xxd test/resources/file.bin
 
 
-## To-Do
-
-- Check places where instead of using `let ... in` you could use `... where`.
-
-
 ## Questions
 
 - What should `Bit` be: `Char` or a number?
