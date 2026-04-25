@@ -30,14 +30,15 @@ import GHC.Generics (Generic)
 import System.IO (withBinaryFile, IOMode(WriteMode), Handle)
 
 
-type Occur = (String, Int)
-data Tree a  = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
+data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
 instance (B.Binary a) => B.Binary (Tree a)
+
+
 type Content = String
-type Code = String
+type Occur   = (String, Int)
+type Code    = String
 type CodeMap = Map.Map Char Code
-type Bit = Char
-type Idx = Int
+type Bit     = Char
 
 
 _debugEnabled :: Bool
@@ -60,13 +61,15 @@ _debugLog str = when _debugEnabled $ putStrLn str
 -- 
 freqTree :: Content -> Tree Occur
 freqTree content =
+    let
         -- build the character frequency map
-    let buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
+        buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
         -- sort it by frequency
         sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
         -- convert list of character -> frequency in to a list of tree leaves
         toLeafList     = List.map (\a -> Node a Empty Empty)
-    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap content
+    in
+        _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap content
 
 
 --
@@ -83,13 +86,18 @@ _buildFreqTree :: [Tree Occur] -> Tree Occur
 _buildFreqTree []         = Empty
 _buildFreqTree [t]        = t
 _buildFreqTree (t1:t2:ts) =
-    let mergeTrees         _t1@(Node v1 _ _) _t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) _t1 _t2
-        mergeTrees         Empty             _                 = Empty
-        mergeTrees         (Node _ _ _)      Empty             = Empty
-        comparingNodeValue (Node v1 _ _)     (Node v2 _ _)     = snd v1 `compare` snd v2
-        comparingNodeValue Empty             _                 = LT
-        comparingNodeValue (Node _ _ _)      Empty             = GT
-    in  _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
+    let
+        mergeTrees :: Tree Occur -> Tree Occur -> Tree Occur
+        mergeTrees _t1@(Node v1 _ _) _t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) _t1 _t2
+        mergeTrees Empty             _                 = Empty
+        mergeTrees (Node _ _ _)      Empty             = Empty
+
+        comparingNodeValue :: Tree Occur -> Tree Occur -> Ordering
+        comparingNodeValue (Node v1 _ _) (Node v2 _ _) = snd v1 `compare` snd v2
+        comparingNodeValue Empty         _             = LT
+        comparingNodeValue (Node _ _ _)  Empty         = GT
+    in
+        _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
 
 
 prettyPrintFreqTree :: Tree Occur -> String
@@ -127,10 +135,12 @@ buildCodeMap (Node v left right) (cm, code)
     -- if got to a leaf, insert the character -> code into the map
     | left == Empty && right == Empty = Map.insert (head $ fst v) code cm
     | otherwise                       =
-        -- traverse the left tree
-        let cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
-        -- traverse the right tree
-        in  buildCodeMap right (cmWithLeftTree, code ++ "1")
+        let
+            -- traverse the left tree
+            cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
+        in
+            -- traverse the right tree
+            buildCodeMap right (cmWithLeftTree, code ++ "1")
 
 
 --
@@ -144,9 +154,11 @@ buildCodeMap (Node v left right) (cm, code)
 -- 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
-    let code k      = charCode k cm
+    let
+        code k      = charCode k cm
         prettyPrint = foldl (\acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm)
-    in  "Code Map:\n" ++ prettyPrint ++ "\nEntry count: " ++ show (length cm)
+    in
+        "Code Map:\n" ++ prettyPrint ++ "\nEntry count: " ++ show (length cm)
 
 
 charCode :: Char -> CodeMap -> Code
@@ -167,11 +179,13 @@ charCode c cm = fromMaybe "" (Map.lookup c cm)
 --
 estimateCompaction :: Content -> Double
 estimateCompaction content =
-    let ogSizeBits     = length content * 8  -- size in bits
+    let
+        ogSizeBits     = length content * 8  -- size in bits
         cm             = codeMap content
         code c         = charCode c cm
         encodedLenBits = foldr (\c acc -> acc + length (code c)) 0 content
-    in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
+    in
+        fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
 -- buffer size in bytes (must be 8 if encoding with word8, which is the case in this code)
@@ -181,22 +195,26 @@ _bufferSize = 8
 
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
-    let cm                  = codeMap content
+    let
+        cm                  = codeMap content
         code c              = charCode c cm
         encodeChar buffer c = foldM (_bufferBit putStrLn) buffer (code c)
         rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
-    in  do
+    in
+        do
         lastByte <- foldM encodeChar "" content
-        return $ reverse lastByte ++ rightPaddingFor lastByte
+        return (reverse lastByte ++ rightPaddingFor lastByte)
 
 
 _bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
 _bufferBit ioFn buffer bit =
-    let doBuffer = bit:buffer
-    in  if length buffer + 1 == _bufferSize
+    let
+         doBuffer = bit:buffer
+    in
+        if length buffer + 1 == _bufferSize
             then do
                 -- flush the buffer
-                ioFn $ reverse doBuffer
+                ioFn (reverse doBuffer)
                 return ""
             else
                 -- keep buffering
@@ -205,13 +223,18 @@ _bufferBit ioFn buffer bit =
 
 encodeToFile :: Content -> FilePath -> IO ()
 encodeToFile content filePath = do
-    let ft = freqTree content
+    let
+        ft = freqTree content
+    
     withBinaryFile filePath WriteMode $ \h -> do
-        let contentLen      = int64LE $ fromIntegral $ length content
+        let
+            contentLen      = int64LE $ fromIntegral (length content)
             encodedFreqTree = execPut (B.put ft)
+        
         -- write header: content length (because the last byte is padded and we
         --               must stop decoding at the length) and frequency tree
         hPutBuilder h (contentLen <> encodedFreqTree)
+        
         -- write body: encoded content
         lastByte <- _encodeToFile content ft h
         unless (null lastByte) $
@@ -220,14 +243,16 @@ encodeToFile content filePath = do
 
 _encodeToFile :: Content -> Tree Occur -> Handle -> IO String
 _encodeToFile content ft h =
-    let cm                  = buildCodeMap ft (Map.empty, "")
+    let
+        cm                  = buildCodeMap ft (Map.empty, "")
         code c              = charCode c cm
         _flush buffer       = hPutBuilder h (word8 $ _bitStringToByte buffer)
         encodeChar buffer c = foldM (_bufferBit _flush) buffer (code c)
         rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
-    in  do
+    in
+        do
         lastByte <- foldM encodeChar "" content
-        return $ reverse lastByte ++ rightPaddingFor lastByte
+        return (reverse lastByte ++ rightPaddingFor lastByte)
 
 
 -- can only use this if the buffer size is 8 (due to the encoding function word8)
@@ -239,16 +264,18 @@ _bitStringToByte = head . _bitStringToBytes
 _bitStringToBytes :: String -> [B.Word8]
 _bitStringToBytes ""   = []
 _bitStringToBytes bits =
-    let bitsWithIdx = zip bits [0..]
+    let
+        bitsWithIdx = zip bits [0..]
 
-        bitWeight :: (Bit, Idx) -> B.Word8
+        bitWeight :: (Bit, Int) -> B.Word8
         bitWeight (bit, idx)
             | bit == '0' = 0x00
             | idx <= 0   = 0x80
             | otherwise  = shiftR 0x80 idx
 
-        bitWeights  = foldl (\acc b -> acc ++ [bitWeight b]) [] bitsWithIdx
-    in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
+        bitWeights = foldl (\acc b -> acc ++ [bitWeight b]) [] bitsWithIdx
+    in  
+        sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
 decode :: FilePath -> IO ()
@@ -297,12 +324,16 @@ decode filePath = do
 
 
 _byteToBitString :: B.Word8 -> String
-_byteToBitString byte = leftPad bitString
-    where
+_byteToBitString byte =
+    let
         charZeroAsciiCode = 48
+
+        decimalToBinary :: B.Word8 -> [Bit]
         decimalToBinary d
             | d == 0    = "0"
             | d == 1    = "1"
             | otherwise = w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
-        bitString   = reverse $ decimalToBinary byte
+
         leftPad str = replicate (8 - length str) '0' ++ str
+    in
+        leftPad $ reverse (decimalToBinary byte)
