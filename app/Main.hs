@@ -28,6 +28,14 @@ commands =  [ ("printFreqTree", printFreqTreeCmd)
             , ("decode", decodeCmd)
             ]
 
+        
+compactSuffix :: String
+compactSuffix = "-compact"
+
+
+inflatedSuffix :: String
+inflatedSuffix = "-inflated"
+
 
 usage :: String
 usage =
@@ -74,12 +82,12 @@ saveHeaderCmd filePath = do
             putInt64le $ fromIntegral (length content)
             B.put (freqTree content)
 
-    BL.writeFile (filePath ++ "-compact") bytes
+    BL.writeFile (filePath ++ compactSuffix) bytes
 
 
 loadHeaderCmd :: FilePath -> IO ()
 loadHeaderCmd filePath = do
-    bytes <- BL.readFile (filePath ++ "-compact")
+    bytes <- BL.readFile (filePath ++ compactSuffix)
     let
         (len, ft) = runGet (do
             _len <- getInt64le
@@ -106,8 +114,8 @@ encodeToScreenCmd filePath = do
 encodeCmd :: FilePath -> IO ()
 encodeCmd filePath = do
     content <- readFile filePath
-    encodeToFile content (filePath ++ "-compact")
+    encodeToFile content (filePath ++ compactSuffix)
 
 
 decodeCmd :: FilePath -> IO ()
-decodeCmd = decode
+decodeCmd filePath = decode (filePath ++ compactSuffix) (filePath ++ inflatedSuffix)

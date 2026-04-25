@@ -219,12 +219,10 @@ _bitStringToBytes bits =
         sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
-decode :: FilePath -> IO ()
-decode filePath = do
-    bytes <- BL.readFile (filePath ++ "-compact")
+decode :: FilePath -> FilePath -> IO ()
+decode inFilePath outFilePath = do
+    bytes <- BL.readFile inFilePath
     let
-        outFile = filePath ++ "-inflated"
-
         (len, ft, binaryContent) = runGet (do
             _len           <- getInt64le                  -- content lenght
             _ft            <- B.get                       -- frequency tree
@@ -240,7 +238,7 @@ decode filePath = do
             if i == len
                 then return theEnd
                 else do
-                    appendFile outFile (fst n)
+                    appendFile outFilePath (fst n)
                     _debugLog $ "char count i=" ++ show (i+1)
                     traverseTree (ft, i+1) bit
 
@@ -262,7 +260,7 @@ decode filePath = do
 
         decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBitString b)
 
-    writeFile outFile ""
+    writeFile outFilePath ""
     foldM_ (\(ftPointer, outCharCount) b -> decodeByte b ftPointer outCharCount) (ft, 0) (BL.unpack binaryContent)
 
 
