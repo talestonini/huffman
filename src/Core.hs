@@ -284,12 +284,11 @@ decode filePath = do
     let
         outFile = filePath ++ "-inflated"
 
-        (len, ft, binaryContent) = runGet (
-            do
-                _len           <- getInt64le                  -- content lenght
-                _ft            <- B.get                       -- frequency tree
-                _binaryContent <- getRemainingLazyByteString  -- compacted content
-                return (fromIntegral _len, _ft, _binaryContent)
+        (len, ft, binaryContent) = runGet (do
+            _len           <- getInt64le                  -- content lenght
+            _ft            <- B.get                       -- frequency tree
+            _binaryContent <- getRemainingLazyByteString  -- compacted content
+            return (fromIntegral _len, _ft, _binaryContent)
             ) bytes
 
         theEnd = (Empty, len)

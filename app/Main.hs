@@ -51,13 +51,13 @@ main = do
 printFreqTreeCmd :: FilePath -> IO ()
 printFreqTreeCmd filePath = do
     content <- readFile filePath
-    putStrLn $ prettyPrintFreqTree $ freqTree content
+    putStrLn $ prettyPrintFreqTree (freqTree content)
 
 
 printCodeMapCmd :: FilePath -> IO ()
 printCodeMapCmd filePath = do
     content <- readFile filePath
-    putStrLn $ prettyPrintCodeMap $ codeMap content
+    putStrLn $ prettyPrintCodeMap (codeMap content)
 
 
 estimateCmd :: FilePath -> IO ()
@@ -72,7 +72,7 @@ saveHeaderCmd filePath = do
     let
         bytes = runPut $ do
             putInt64le $ fromIntegral (length content)
-            B.put $ freqTree content
+            B.put (freqTree content)
 
     BL.writeFile (filePath ++ "-compact") bytes
 
@@ -81,18 +81,19 @@ loadHeaderCmd :: FilePath -> IO ()
 loadHeaderCmd filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
     let
-        (len, ft) = runGet (
-            do
-                _len <- getInt64le
-                _ft  <- B.get
-                return (_len, _ft)
+        (len, ft) = runGet (do
+            _len <- getInt64le
+            _ft  <- B.get
+            return (_len, _ft)
             ) bytes 
 
-    putStrLn $ prettyPrintFreqTree ft
+        cm = buildCodeMap ft (Map.empty, "")
+
+    putStrLn (prettyPrintFreqTree ft)
     putStrLn ""
-    putStrLn $ "Characters length: " ++ show len
+    putStrLn ("Characters length: " ++ show len)
     putStrLn ""
-    putStrLn $ prettyPrintCodeMap $ buildCodeMap ft (Map.empty, "")
+    putStrLn (prettyPrintCodeMap cm)
 
 
 encodeToScreenCmd :: FilePath -> IO ()
