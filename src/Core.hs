@@ -47,6 +47,27 @@ _debugLog str = when _debugEnabled $ putStrLn str
 
 
 --
+-- Builds the frequency tree from the input file.  Note that each distinct character in the input string is converted to
+-- a single-character string in the output tree.
+-- 
+-- IN:
+-- - Content...: input file content
+-- 
+-- OUT:
+-- - Tree Occur: the frequency tree
+-- 
+freqTree :: Content -> Tree Occur
+freqTree str =
+        -- build the character frequency map
+    let buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
+        -- sort it by frequency
+        sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
+        -- convert list of character -> frequency in to a list of tree leaves
+        toLeafList     = List.map (\a -> Node a Empty Empty)
+    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
+
+
+--
 -- Builds the frequency tree by traversing the list of leaves.  A leaf has a distinct character from the input file and
 -- its corresponding frequency (occurrence count) in the file.
 --
@@ -69,27 +90,6 @@ _buildFreqTree (t1:t2:ts) =
     in  _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
 
 
---
--- Builds the frequency tree from the input file.  Note that each distinct character in the input string is converted to
--- a single-character string in the output map.
--- 
--- IN:
--- - Content...: input file content
--- 
--- OUT:
--- - Tree Occur: the frequency tree
--- 
-freqTree :: Content -> Tree Occur
-freqTree str =
-        -- build the character frequency map
-    let buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
-        -- sort it by frequency
-        sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
-        -- convert list of character -> frequency in to a list of tree leaves
-        toLeafList     = List.map (\a -> Node a Empty Empty)
-    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
-
-
 -- 
 -- Builds the map of character (key) to code (value).  The character is a distinct character from the input file and
 -- their code is built by traversing the frequency tree: build the code by adding a "0" bit when navigating to the left
@@ -107,10 +107,10 @@ buildCodeMap Empty _ = Map.empty
 buildCodeMap (Node v left right) (cm, code)
     -- if got to a leaf, insert the character -> code into the map
     | left == Empty && right == Empty = Map.insert (head $ fst v) code cm
-    | otherwise =
-            -- traverse the left tree
+    | otherwise                       =
+        -- traverse the left tree
         let cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
-            -- traverse the right tree
+        -- traverse the right tree
         in  buildCodeMap right (cmWithLeftTree, code ++ "1")
 
 
@@ -150,8 +150,8 @@ prettyPrintCodeMap cm =
 --
 -- Provides an estimate rate for the compaction of the input file.  Note it is just an estimate, for the following
 -- reasons:
--- - chars do not always fit into 1 byte (like in the logic applied here)
--- - compacted files will have a header with the content length (in number of chars) and the frequency tree
+-- - chars do not always fit into 1 byte (8 bits, like in the logic applied here)
+-- - compacted files will have a header composed of the content length (in number of chars) and the frequency tree
 --
 -- IN:
 -- - Content: the input file content
@@ -167,7 +167,7 @@ estimateCompaction content =
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
--- buffer size in bytes (must be 8 if encoding with word8)
+-- buffer size in bytes (must be 8 if encoding with word8, which is the case in this code)
 _bufferSize :: Int
 _bufferSize = 8
 
@@ -232,15 +232,17 @@ _bitStringToBytes :: String -> [B.Word8]
 _bitStringToBytes ""   = []
 _bitStringToBytes bits =
     let bitsWithIdx = zip bits [0..]
-        bitWeights  = foldl (\acc b -> acc ++ [_bitWeight b]) [] bitsWithIdx
+
+        bitWeight :: (Bit, Idx) -> B.Word8
+        bitWeight (bit, idx)
+            | bit == '0' = 0x00
+            | idx <= 0   = 0x80
+            | otherwise  = shiftR 0x80 idx
+
+        bitWeights  = foldl (\acc b -> acc ++ [bitWeight b]) [] bitsWithIdx
     in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
-_bitWeight :: (Bit, Idx) -> B.Word8
-_bitWeight (bit, idx)
-    | bit == '0' = 0x00
-    | idx <= 0   = 0x80
-    | otherwise  = shiftR 0x80 idx
 
 
 decode :: FilePath -> IO ()
