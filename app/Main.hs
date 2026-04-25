@@ -49,7 +49,7 @@ main = do
 printFreqTreeCmd :: FilePath -> IO ()
 printFreqTreeCmd filePath = do
     content <- readFile filePath
-    print (freqTree content)
+    putStrLn $ prettyPrintFreqTree $ freqTree content
 
 
 printCodeMapCmd :: FilePath -> IO ()
@@ -61,33 +61,31 @@ printCodeMapCmd filePath = do
 estimateCmd :: FilePath -> IO ()
 estimateCmd filePath = do
     content <- readFile filePath
-    printf "Estimated compaction rate: %.3f\n" (estimateCompaction content)
+    printf "Estimated compaction rate (compacted / original size): %.3f\n" (estimateCompaction content)
 
 
 saveHeaderCmd :: FilePath -> IO ()
 saveHeaderCmd filePath = do
     content <- readFile filePath
-    let fullFilePath = filePath ++ "-compact"
-        bytes = runPut $ do
+    let bytes = runPut $ do
             putInt64le $ fromIntegral (length content)
             B.put $ freqTree content
-    BL.writeFile fullFilePath bytes
+    BL.writeFile (filePath ++ "-compact") bytes
 
 
 loadHeaderCmd :: FilePath -> IO ()
 loadHeaderCmd filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
-    let cm        = buildCodeMap ft (Map.empty, "")
-        (len, ft) = runGet (do
+    let (len, ft) = runGet (do
             _len <- getInt64le
             _ft  <- B.get
             return (_len, _ft)
             ) bytes 
-    print ft
+    putStrLn $ prettyPrintFreqTree ft
     putStrLn ""
-    putStrLn (prettyPrintCodeMap cm)
+    putStrLn $ "Characters length: " ++ show len
     putStrLn ""
-    putStrLn $ "Text length: " ++ show len
+    putStrLn $ prettyPrintCodeMap $ buildCodeMap ft (Map.empty, "")
 
 
 encodeToScreenCmd :: FilePath -> IO ()

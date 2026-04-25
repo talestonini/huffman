@@ -1,10 +1,12 @@
 module Core
 ( Tree
 , Occur
-, buildCodeMap
 , freqTree
+, prettyPrintFreqTree
 , codeMap
+, buildCodeMap
 , prettyPrintCodeMap
+, charCode
 , estimateCompaction
 , encodeToScreen
 , encodeToFile
@@ -57,14 +59,14 @@ _debugLog str = when _debugEnabled $ putStrLn str
 -- - Tree Occur: the frequency tree
 -- 
 freqTree :: Content -> Tree Occur
-freqTree str =
+freqTree content =
         -- build the character frequency map
     let buildFreqMap   = foldr (\c acc -> Map.insertWith (+) (List.singleton c) 1 acc) Map.empty
         -- sort it by frequency
         sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
         -- convert list of character -> frequency in to a list of tree leaves
         toLeafList     = List.map (\a -> Node a Empty Empty)
-    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap str
+    in  _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap content
 
 
 --
@@ -88,6 +90,23 @@ _buildFreqTree (t1:t2:ts) =
         comparingNodeValue Empty             _                 = LT
         comparingNodeValue (Node _ _ _)      Empty             = GT
     in  _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
+
+
+prettyPrintFreqTree :: Tree Occur -> String
+prettyPrintFreqTree ft = "Frequency Tree:\n" ++ show ft
+
+
+--
+-- Builds the map of character (key) to code (value) from the input file.
+--
+-- IN:
+-- - Content: input file content
+-- 
+-- OUT:
+-- - CodeMap: the code map
+-- 
+codeMap :: Content -> CodeMap
+codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
 
 
 -- 
@@ -115,23 +134,6 @@ buildCodeMap (Node v left right) (cm, code)
 
 
 --
--- Builds the map of character (key) to code (value) from the input file.
---
--- IN:
--- - Content: input file content
--- 
--- OUT:
--- - CodeMap: the code map
--- 
-codeMap :: Content -> CodeMap
-codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
-
-
-_charCode :: Char -> CodeMap -> Code
-_charCode c cm = fromMaybe "" (Map.lookup c cm)
-
-
---
 -- Prints a human-readable map of the code map.
 --
 -- IN:
@@ -142,9 +144,13 @@ _charCode c cm = fromMaybe "" (Map.lookup c cm)
 -- 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
-    let code k     = _charCode k cm
-        numEntries = "\nEntry count: " ++ show (length cm)
-    in  foldl (\acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm) ++ numEntries
+    let code k      = charCode k cm
+        prettyPrint = foldl (\acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm)
+    in  "Code Map:\n" ++ prettyPrint ++ "\nEntry count: " ++ show (length cm)
+
+
+charCode :: Char -> CodeMap -> Code
+charCode c cm = fromMaybe "" (Map.lookup c cm)
 
 
 --
@@ -163,7 +169,8 @@ estimateCompaction :: Content -> Double
 estimateCompaction content =
     let ogSizeBits     = length content * 8  -- size in bits
         cm             = codeMap content
-        encodedLenBits = foldr (\c acc -> acc + length (_charCode c cm)) 0 content
+        code c         = charCode c cm
+        encodedLenBits = foldr (\c acc -> acc + length (code c)) 0 content
     in  fromIntegral encodedLenBits / fromIntegral ogSizeBits
 
 
@@ -174,12 +181,13 @@ _bufferSize = 8
 
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
-    let cm                         = codeMap content
-        encodeChar buffer c        = foldM (_bufferBit putStrLn) buffer (_charCode c cm)
-        rightPaddingWithZeroes str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+    let cm                  = codeMap content
+        code c              = charCode c cm
+        encodeChar buffer c = foldM (_bufferBit putStrLn) buffer (code c)
+        rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
-        str <- foldM encodeChar "" content
-        return (reverse str ++ rightPaddingWithZeroes str)
+        lastByte <- foldM encodeChar "" content
+        return $ reverse lastByte ++ rightPaddingFor lastByte
 
 
 _bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
@@ -212,14 +220,14 @@ encodeToFile content filePath = do
 
 _encodeToFile :: Content -> Tree Occur -> Handle -> IO String
 _encodeToFile content ft h =
-    let cm                         = buildCodeMap ft (Map.empty, "")
-        _flush buffer              = hPutBuilder h (word8 $ _bitStringToByte buffer)
-        charCode c                 = _charCode c cm
-        encodeChar buffer c        = foldM (_bufferBit _flush) buffer (charCode c)
-        rightPaddingWithZeroes str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+    let cm                  = buildCodeMap ft (Map.empty, "")
+        code c              = charCode c cm
+        _flush buffer       = hPutBuilder h (word8 $ _bitStringToByte buffer)
+        encodeChar buffer c = foldM (_bufferBit _flush) buffer (code c)
+        rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in  do
         lastByte <- foldM encodeChar "" content
-        return (reverse lastByte ++ rightPaddingWithZeroes lastByte)
+        return $ reverse lastByte ++ rightPaddingFor lastByte
 
 
 -- can only use this if the buffer size is 8 (due to the encoding function word8)
@@ -243,14 +251,12 @@ _bitStringToBytes bits =
     in  sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
 
 
-
-
 decode :: FilePath -> IO ()
 decode filePath = do
     bytes <- BL.readFile (filePath ++ "-compact")
     let outFile = filePath ++ "-inflated"
 
-        (len, ft :: Tree Occur, binaryContent) = runGet (do
+        (len, ft, binaryContent) = runGet (do
             _len           <- getInt64le                  -- content lenght
             _ft            <- B.get                       -- frequency tree
             _binaryContent <- getRemainingLazyByteString  -- compacted content
@@ -287,20 +293,19 @@ decode filePath = do
         decodeByte b ftLoc i = foldM traverseTree (ftLoc, i) (_byteToBitString b)
 
     writeFile outFile ""
-    foldM_ (\(ftLoc, i) b -> do
-        (outFtLoc, writtenCharCount) <- decodeByte b ftLoc i
-        return (outFtLoc, writtenCharCount)
+    foldM_ (\(loopFtPos, i) b -> do
+        (ftPos, writtenCharCount) <- decodeByte b loopFtPos i
+        return (ftPos, writtenCharCount)
         ) (ft, 0) (BL.unpack binaryContent)
 
 
 _byteToBitString :: B.Word8 -> String
-_byteToBitString byte =
-    leftPadWithZeroes bitString
+_byteToBitString byte = leftPad bitString
     where
         charZeroAsciiCode = 48
         decimalToBinary d
             | d == 0    = "0"
             | d == 1    = "1"
             | otherwise = w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
-        bitString             = reverse $ decimalToBinary byte
-        leftPadWithZeroes str = replicate (8 - length str) '0' ++ str
+        bitString   = reverse $ decimalToBinary byte
+        leftPad str = replicate (8 - length str) '0' ++ str
