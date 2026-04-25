@@ -177,13 +177,13 @@ encodeToFile content filePath = do
         hPutBuilder h (contentLen <> encodedFreqTree)
         
         -- write body: encoded content
-        lastByte <- _encodeToFile content ft h
+        lastByte <- _encodeBody content ft h
         unless (null lastByte) $
             hPutBuilder h (word8 $ _bitStringToByte lastByte)
 
 
-_encodeToFile :: Content -> Tree Occur -> Handle -> IO String
-_encodeToFile content ft h =
+_encodeBody :: Content -> Tree Occur -> Handle -> IO String
+_encodeBody content ft h =
     let
         cm                  = buildCodeMap ft (Map.empty, "")
         code c              = charCode c cm
