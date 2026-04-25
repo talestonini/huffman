@@ -294,7 +294,7 @@ decode filePath = do
         theEnd = (Empty, len)
 
         traverseTree :: (Tree Occur, Int) -> Bit -> IO (Tree Occur, Int)
-        traverseTree (Node n Empty        Empty       , i) bit = do
+        traverseTree (Node n Empty Empty, i) bit = do
             _debugLog $ "got to a leaf: char='" ++ fst n ++ "'"
             if i == len
                 then return theEnd
@@ -302,21 +302,22 @@ decode filePath = do
                     appendFile outFile (fst n)
                     _debugLog $ "char count i=" ++ show (i+1)
                     traverseTree (ft, i+1) bit
-        traverseTree (Node _ left  _                  , i) '0' = do
+
+        traverseTree (Node _ left _, i) '0' = do
             _debugLog "to the left..."
             return $ if i == len then theEnd else (left, i)
-        traverseTree (Node _ _            right       , i) '1' = do
+
+        traverseTree (Node _ _ right, i) '1' = do
             _debugLog "to the right..."
             return $ if i == len then theEnd else (right, i)
-        traverseTree (Empty                           , _) _   = do
+
+        traverseTree (Empty, _) _ = do
             _debugLog "the end with empty tree"
-            return theEnd  -- invalid: ft should not be empty
-        traverseTree (Node _ (Node _ _ _) _           , _) _   = do
-            _debugLog "unexpected end with tree cotaining only left branch"
-            return theEnd  -- invalid: tree always has 2 branches
-        traverseTree (Node _ Empty        (Node _ _ _), _) _   = do
-            _debugLog "unexpected end with tree cotaining only right branch"
-            return theEnd  -- invalid: tree always has 2 branches
+            return theEnd  -- should only be empty when we reach the padding zeroes
+
+        traverseTree (Node _ _ _, _) _ = do
+            _debugLog "unexpected end (bit is something other than 0 or 1)"
+            return theEnd  -- invalid bit
 
         decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBitString b)
 

@@ -12,8 +12,3 @@ My implementation of the Huffman encoder in Haskell.
 ## Inspect Binary File
 
     xxd test/resources/file.bin
-
-
-## Questions
-
-- What should `Bit` be: `Char` or a number?

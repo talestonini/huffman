@@ -1,7 +1,7 @@
 --
 -- Huffman Algo: Compacts text by encoding its characters with codes whose lenght is inversely proportional to their
--- frequencies in the text.  That way, more frequent characters will have small codes, whereas less frequent characters
--- will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
+-- frequencies in the text.  That way, more frequent characters will have smaller codes, whereas less frequent
+-- characters will have longer codes.  In the end, the encoded text should be shorter in storage than the original text.
 --
 
 
