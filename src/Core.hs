@@ -290,13 +290,10 @@ decode filePath = do
             _debugLog "unexpected end with tree cotaining only right branch"
             return theEnd  -- invalid: tree always has 2 branches
 
-        decodeByte b ftLoc i = foldM traverseTree (ftLoc, i) (_byteToBitString b)
+        decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBitString b)
 
     writeFile outFile ""
-    foldM_ (\(loopFtPos, i) b -> do
-        (ftPos, writtenCharCount) <- decodeByte b loopFtPos i
-        return (ftPos, writtenCharCount)
-        ) (ft, 0) (BL.unpack binaryContent)
+    foldM_ (\(ftPointer, outCharCount) b -> decodeByte b ftPointer outCharCount) (ft, 0) (BL.unpack binaryContent)
 
 
 _byteToBitString :: B.Word8 -> String
