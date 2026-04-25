@@ -49,16 +49,6 @@ _debugLog :: String -> IO ()
 _debugLog str = when _debugEnabled $ putStrLn str
 
 
---
--- Builds the frequency tree from the input file.  Note that each distinct character in the input string is converted to
--- a single-character string in the output tree.
--- 
--- IN:
--- - Content...: input file content
--- 
--- OUT:
--- - Tree Occur: the frequency tree
--- 
 freqTree :: Content -> Tree Occur
 freqTree content =
     let
@@ -72,16 +62,6 @@ freqTree content =
         _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap content
 
 
---
--- Builds the frequency tree by traversing the list of leaves.  A leaf has a distinct character from the input file and
--- its corresponding frequency (occurrence count) in the file.
---
--- IN:
--- - [Tree Occur]: the list of tree leaves
---
--- OUT:
--- - Tree Occur..: the frequency tree
---
 _buildFreqTree :: [Tree Occur] -> Tree Occur
 _buildFreqTree []         = Empty
 _buildFreqTree [t]        = t
@@ -104,36 +84,15 @@ prettyPrintFreqTree :: Tree Occur -> String
 prettyPrintFreqTree ft = "Frequency Tree:\n" ++ show ft
 
 
---
--- Builds the map of character (key) to code (value) from the input file.
---
--- IN:
--- - Content: input file content
--- 
--- OUT:
--- - CodeMap: the code map
--- 
 codeMap :: Content -> CodeMap
 codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
 
 
--- 
--- Builds the map of character (key) to code (value).  The character is a distinct character from the input file and
--- their code is built by traversing the frequency tree: build the code by adding a "0" bit when navigating to the left
--- and a "1" bit when navigating to the right.
--- 
--- IN:
--- - Tree Occur.....: the frequency tree
--- - (CodeMap, Code): accumulators for the map and the code
--- 
--- OUT:
--- - CodeMap........: the final value of the map accumulator
--- 
 buildCodeMap :: Tree Occur -> (CodeMap, Code) -> CodeMap
 buildCodeMap Empty _ = Map.empty
-buildCodeMap (Node v left right) (cm, code)
+buildCodeMap (Node n left right) (cm, code)
     -- if got to a leaf, insert the character -> code into the map
-    | left == Empty && right == Empty = Map.insert (head $ fst v) code cm
+    | left == Empty && right == Empty = Map.insert (head $ fst n) code cm
     | otherwise                       =
         let
             -- traverse the left tree
@@ -143,15 +102,6 @@ buildCodeMap (Node v left right) (cm, code)
             buildCodeMap right (cmWithLeftTree, code ++ "1")
 
 
---
--- Prints a human-readable map of the code map.
---
--- IN:
--- - CodeMap: the code map
--- 
--- OUT:
--- - String.: a human-readable map of the code map
--- 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
     let
@@ -165,18 +115,9 @@ charCode :: Char -> CodeMap -> Code
 charCode c cm = fromMaybe "" (Map.lookup c cm)
 
 
---
--- Provides an estimate rate for the compaction of the input file.  Note it is just an estimate, for the following
--- reasons:
+-- just an estimate, due to:
 -- - chars do not always fit into 1 byte (8 bits, like in the logic applied here)
 -- - compacted files will have a header composed of the content length (in number of chars) and the frequency tree
---
--- IN:
--- - Content: the input file content
---
--- OUT:
--- - Double.: the estimated compaction rate
---
 estimateCompaction :: Content -> Double
 estimateCompaction content =
     let
