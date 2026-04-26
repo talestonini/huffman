@@ -57,7 +57,7 @@ freqTree content =
         -- sort it by frequency
         sortFreqMap fm = List.sortBy (compare `on` snd) (Map.toList fm)
         -- convert list of character -> frequency in to a list of tree leaves
-        toLeafList     = List.map (\a -> Node a Empty Empty)
+        toLeafList     = List.map (\n -> Node n Empty Empty)
     in
         _buildFreqTree $ toLeafList $ sortFreqMap $ buildFreqMap content
 
@@ -69,13 +69,11 @@ _buildFreqTree (t1:t2:ts) =
     let
         mergeTrees :: Tree Occur -> Tree Occur -> Tree Occur
         mergeTrees _t1@(Node v1 _ _) _t2@(Node v2 _ _) = Node (fst v1 ++ fst v2, snd v1 + snd v2) _t1 _t2
-        mergeTrees Empty             _                 = Empty
-        mergeTrees (Node _ _ _)      Empty             = Empty
+        mergeTrees _                 _                 = Empty  -- any other input is not expected
 
         comparingNodeValue :: Tree Occur -> Tree Occur -> Ordering
         comparingNodeValue (Node v1 _ _) (Node v2 _ _) = snd v1 `compare` snd v2
-        comparingNodeValue Empty         _             = LT
-        comparingNodeValue (Node _ _ _)  Empty         = GT
+        comparingNodeValue _             _             = EQ  -- any other input is not expected
     in
         _buildFreqTree $ List.insertBy comparingNodeValue (mergeTrees t1 t2) ts
 
@@ -92,7 +90,7 @@ buildCodeMap :: Tree Occur -> (CodeMap, Code) -> CodeMap
 buildCodeMap Empty _ = Map.empty
 buildCodeMap (Node n left right) (cm, code)
     -- if got to a leaf, insert the character -> code into the map
-    | left == Empty && right == Empty = Map.insert (head $ fst n) code cm
+    | left == Empty && right == Empty = Map.insert (head $ fst n) code cm  -- head because Occur value is String
     | otherwise                       =
         let
             -- traverse the left tree
@@ -147,7 +145,7 @@ encodeToScreen content =
         return (reverse lastByte ++ rightPaddingFor lastByte)
 
 
-_bufferBit :: (String -> IO ()) -> String -> Bit -> IO String
+_bufferBit :: ([Bit] -> IO ()) -> [Bit] -> Bit -> IO [Bit]
 _bufferBit ioFn buffer bit =
     let
          doBuffer = bit:buffer
@@ -179,15 +177,15 @@ encodeToFile content filePath = do
         -- write body: encoded content
         lastByte <- _encodeBody content ft h
         unless (null lastByte) $
-            hPutBuilder h (word8 $ _bitStringToByte lastByte)
+            hPutBuilder h (word8 $ _bitsToByte lastByte)
 
 
-_encodeBody :: Content -> Tree Occur -> Handle -> IO String
+_encodeBody :: Content -> Tree Occur -> Handle -> IO [Bit]
 _encodeBody content ft h =
     let
         cm                  = buildCodeMap ft (Map.empty, "")
         code c              = charCode c cm
-        _flush buffer       = hPutBuilder h (word8 $ _bitStringToByte buffer)
+        _flush buffer       = hPutBuilder h (word8 $ _bitsToByte buffer)
         encodeChar buffer c = foldM (_bufferBit _flush) buffer (code c)
         rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
     in
@@ -197,14 +195,14 @@ _encodeBody content ft h =
 
 
 -- can only use this if the buffer size is 8 (due to the encoding function word8)
-_bitStringToByte :: String -> B.Word8
-_bitStringToByte = head . _bitStringToBytes
+_bitsToByte :: [Bit] -> B.Word8
+_bitsToByte = head . _bitsToBytes
 
 
 -- the bit string must have a length that is a multiple of 8
-_bitStringToBytes :: String -> [B.Word8]
-_bitStringToBytes ""   = []
-_bitStringToBytes bits =
+_bitsToBytes :: [Bit] -> [B.Word8]
+_bitsToBytes ""   = []
+_bitsToBytes bits =
     let
         bitsWithIdx = zip bits [0..]
 
@@ -216,7 +214,7 @@ _bitStringToBytes bits =
 
         bitWeights = foldl (\acc b -> acc ++ [bitWeight b]) [] bitsWithIdx
     in  
-        sum (take 8 bitWeights) : _bitStringToBytes (drop 8 bits)
+        sum (take 8 bitWeights) : _bitsToBytes (drop 8 bits)
 
 
 decode :: FilePath -> FilePath -> IO ()
@@ -258,14 +256,14 @@ decode inFilePath outFilePath = do
             _debugLog "unexpected end (bit is something other than 0 or 1)"
             return theEnd  -- invalid bit
 
-        decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBitString b)
+        decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBits b)
 
     writeFile outFilePath ""
     foldM_ (\(ftPointer, outCharCount) b -> decodeByte b ftPointer outCharCount) (ft, 0) (BL.unpack binaryContent)
 
 
-_byteToBitString :: B.Word8 -> String
-_byteToBitString byte =
+_byteToBits :: B.Word8 -> [Bit]
+_byteToBits byte =
     let
         charZeroAsciiCode = 48
 
