@@ -95,7 +95,7 @@ loadHeaderCmd filePath = do
             return (_len, _ft)
             ) bytes 
 
-        cm = buildCodeMap ft (Map.empty, "")
+        cm = buildCodeMap ft (Map.empty, [])
 
     putStrLn (prettyPrintFreqTree ft)
     putStrLn ""

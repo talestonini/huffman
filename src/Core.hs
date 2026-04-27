@@ -20,7 +20,6 @@ import Data.Binary.Get (runGet, getInt64le, getRemainingLazyByteString)
 import Data.Binary.Put (execPut)
 import Data.Bits (Bits(shiftR))
 import Data.ByteString.Builder (int64LE, hPutBuilder, word8)
-import Data.ByteString.Internal (w2c)
 import qualified Data.ByteString.Lazy as BL
 import Data.Function (on)
 import qualified Data.List as List
@@ -34,11 +33,13 @@ data Tree a = Empty | Node a (Tree a) (Tree a) deriving (Show, Eq, Ord, Generic)
 instance (B.Binary a) => B.Binary (Tree a)
 
 
+data Bit = Zero | One deriving (Show, Eq)
+
+
 type Content = String
 type Occur   = (String, Int)
-type Code    = String
+type Code    = [Bit]
 type CodeMap = Map.Map Char Code
-type Bit     = Char
 
 
 _debugEnabled :: Bool
@@ -83,7 +84,7 @@ prettyPrintFreqTree ft = "Frequency Tree:\n" ++ show ft
 
 
 codeMap :: Content -> CodeMap
-codeMap content = buildCodeMap (freqTree content) (Map.empty, "")
+codeMap content = buildCodeMap (freqTree content) (Map.empty, [])
 
 
 buildCodeMap :: Tree Occur -> (CodeMap, Code) -> CodeMap
@@ -94,23 +95,23 @@ buildCodeMap (Node n left right) (cm, code)
     | otherwise                       =
         let
             -- traverse the left tree
-            cmWithLeftTree = buildCodeMap left (cm, code ++ "0")
+            cmWithLeftTree = buildCodeMap left (cm, code ++ [Zero])
         in
             -- traverse the right tree
-            buildCodeMap right (cmWithLeftTree, code ++ "1")
+            buildCodeMap right (cmWithLeftTree, code ++ [One])
 
 
 prettyPrintCodeMap :: CodeMap -> String
 prettyPrintCodeMap cm =
     let
         code k      = charCode k cm
-        prettyPrint = foldl (\acc k -> acc ++ show k ++ " - " ++ code k ++ "\n") "" (Map.keys cm)
+        prettyPrint = foldl (\acc k -> acc ++ show k ++ " - " ++ show (code k) ++ "\n") [] (Map.keys cm)
     in
         "Code Map:\n" ++ prettyPrint ++ "\nEntry count: " ++ show (length cm)
 
 
 charCode :: Char -> CodeMap -> Code
-charCode c cm = fromMaybe "" (Map.lookup c cm)
+charCode c cm = fromMaybe [] (Map.lookup c cm)
 
 
 -- just an estimate, due to:
@@ -135,17 +136,17 @@ _bufferSize = 8
 encodeToScreen :: Content -> IO String
 encodeToScreen content =
     let
-        cm                  = codeMap content
-        code c              = charCode c cm
-        encodeChar buffer c = foldM (_bufferBit putStrLn) buffer (code c)
-        rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+        cm                   = codeMap content
+        code c               = List.map (\bit -> if bit == Zero then '0' else '1') (charCode c cm)
+        encodeChar buffer c  = foldM (_bufferBit putStrLn) buffer (code c)
+        rightPaddingFor bits = if not (null bits) then replicate (_bufferSize - length bits) '0' else []
     in
         do
-        lastByte <- foldM encodeChar "" content
+        lastByte <- foldM encodeChar [] content
         return (reverse lastByte ++ rightPaddingFor lastByte)
 
 
-_bufferBit :: ([Bit] -> IO ()) -> [Bit] -> Bit -> IO [Bit]
+_bufferBit :: ([a] -> IO ()) -> [a] -> a -> IO [a]
 _bufferBit ioFn buffer bit =
     let
          doBuffer = bit:buffer
@@ -154,7 +155,7 @@ _bufferBit ioFn buffer bit =
             then do
                 -- flush the buffer
                 ioFn (reverse doBuffer)
-                return ""
+                return []
             else
                 -- keep buffering
                 return doBuffer
@@ -183,14 +184,14 @@ encodeToFile content filePath = do
 _encodeBody :: Content -> Tree Occur -> Handle -> IO [Bit]
 _encodeBody content ft h =
     let
-        cm                  = buildCodeMap ft (Map.empty, "")
-        code c              = charCode c cm
-        _flush buffer       = hPutBuilder h (word8 $ _bitsToByte buffer)
-        encodeChar buffer c = foldM (_bufferBit _flush) buffer (code c)
-        rightPaddingFor str = if not (null str) then replicate (_bufferSize - length str) '0' else ""
+        cm                   = buildCodeMap ft (Map.empty, [])
+        code c               = charCode c cm
+        _flush buffer        = hPutBuilder h (word8 $ _bitsToByte buffer)
+        encodeChar buffer c  = foldM (_bufferBit _flush) buffer (code c)
+        rightPaddingFor bits = if not (null bits) then replicate (_bufferSize - length bits) Zero else []
     in
         do
-        lastByte <- foldM encodeChar "" content
+        lastByte <- foldM encodeChar [] content
         return (reverse lastByte ++ rightPaddingFor lastByte)
 
 
@@ -201,16 +202,16 @@ _bitsToByte = head . _bitsToBytes
 
 -- the bit string must have a length that is a multiple of 8
 _bitsToBytes :: [Bit] -> [B.Word8]
-_bitsToBytes ""   = []
+_bitsToBytes []   = []
 _bitsToBytes bits =
     let
         bitsWithIdx = zip bits [0..]
 
         bitWeight :: (Bit, Int) -> B.Word8
         bitWeight (bit, idx)
-            | bit == '0' = 0x00
-            | idx <= 0   = 0x80
-            | otherwise  = shiftR 0x80 idx
+            | bit == Zero = 0x00
+            | idx == 0    = 0x80
+            | otherwise   = shiftR 0x80 idx
 
         bitWeights = foldl (\acc b -> acc ++ [bitWeight b]) [] bitsWithIdx
     in  
@@ -240,21 +241,17 @@ decode inFilePath outFilePath = do
                     _debugLog $ "char count i=" ++ show (i+1)
                     traverseTree (ft, i+1) bit
 
-        traverseTree (Node _ left _, i) '0' = do
+        traverseTree (Node _ left _, i) Zero = do
             _debugLog "to the left..."
             return $ if i == len then theEnd else (left, i)
 
-        traverseTree (Node _ _ right, i) '1' = do
+        traverseTree (Node _ _ right, i) One = do
             _debugLog "to the right..."
             return $ if i == len then theEnd else (right, i)
 
         traverseTree (Empty, _) _ = do
             _debugLog "the end with empty tree"
             return theEnd  -- should only be empty when we reach the padding zeroes
-
-        traverseTree (Node _ _ _, _) _ = do
-            _debugLog "unexpected end (bit is something other than 0 or 1)"
-            return theEnd  -- invalid bit
 
         decodeByte b ftPointer outCharCount = foldM traverseTree (ftPointer, outCharCount) (_byteToBits b)
 
@@ -265,14 +262,12 @@ decode inFilePath outFilePath = do
 _byteToBits :: B.Word8 -> [Bit]
 _byteToBits byte =
     let
-        charZeroAsciiCode = 48
-
         decimalToBinary :: B.Word8 -> [Bit]
         decimalToBinary d
-            | d == 0    = "0"
-            | d == 1    = "1"
-            | otherwise = w2c (d `mod` 2 + charZeroAsciiCode) : decimalToBinary (d `div` 2)
+            | d == 0    = [Zero]
+            | d == 1    = [One]
+            | otherwise = (if even d then Zero else One) : decimalToBinary (d `div` 2)
 
-        leftPad str = replicate (8 - length str) '0' ++ str
+        leftPad str = replicate (8 - length str) Zero ++ str
     in
         leftPad $ reverse (decimalToBinary byte)
